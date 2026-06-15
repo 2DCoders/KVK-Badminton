@@ -15,9 +15,7 @@ export default function Bookings() {
   const [selectedDate, setSelectedDate] = useState(0);
 
   // Multi-court selections
-  const [selectedSlots, setSelectedSlots] = useState<
-    Record<Court, string[]>
-  >({
+  const [selectedSlots, setSelectedSlots] = useState<Record<Court, string[]>>({
     "Court 1": [],
     "Court 2": [],
   });
@@ -98,9 +96,7 @@ export default function Bookings() {
         };
       }
 
-      const indexes = existing.map((s) =>
-        slots.findIndex((x) => x.id === s)
-      );
+      const indexes = existing.map((s) => slots.findIndex((x) => x.id === s));
 
       const min = Math.min(...indexes);
       const max = Math.max(...indexes);
@@ -134,12 +130,7 @@ export default function Bookings() {
         <h3 className="font-semibold text-gray-900">{court}</h3>
 
         <span className="text-xs text-gray-500">
-          {
-            slots.filter(
-              (slot) => slot.status === "available"
-            ).length
-          }{" "}
-          Available
+          {slots.filter((slot) => slot.status === "available").length} Available
         </span>
       </div>
 
@@ -164,10 +155,10 @@ export default function Bookings() {
                   selected
                     ? "border-amber-500 bg-amber-50 text-amber-700"
                     : slot.status === "booked"
-                    ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
-                    : slot.status === "past"
-                    ? "bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed"
-                    : "bg-white border-gray-200 hover:border-gray-400"
+                      ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                      : slot.status === "past"
+                        ? "bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed"
+                        : "bg-white border-gray-200 hover:border-gray-400"
                 }
               `}
             >
@@ -184,9 +175,7 @@ export default function Bookings() {
       {/* Header */}
 
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900">
-          Court Booking
-        </h1>
+        <h1 className="text-2xl font-semibold text-gray-900">Court Booking</h1>
 
         <p className="text-sm text-gray-500 mt-1">
           Select consecutive slots from one or multiple courts.
@@ -223,13 +212,9 @@ export default function Bookings() {
                 }
               `}
             >
-              <div className="text-xs font-medium">
-                {day.label}
-              </div>
+              <div className="text-xs font-medium">{day.label}</div>
 
-              <div className="text-base font-semibold">
-                {day.day}
-              </div>
+              <div className="text-base font-semibold">{day.day}</div>
             </button>
           ))}
         </div>
@@ -251,9 +236,7 @@ export default function Bookings() {
           <div className="bg-white rounded-2xl border border-gray-200 p-5">
             <div className="flex items-center gap-2 mb-5">
               <Calendar size={18} />
-              <h3 className="font-semibold">
-                Booking Summary
-              </h3>
+              <h3 className="font-semibold">Booking Summary</h3>
             </div>
 
             {!hasSelection ? (
@@ -270,9 +253,7 @@ export default function Bookings() {
                   {court1Slots > 0 && (
                     <div>
                       <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">
-                          Court 1
-                        </span>
+                        <span className="text-sm text-gray-500">Court 1</span>
 
                         <span className="font-medium">
                           {court1Slots} Hour
@@ -287,9 +268,7 @@ export default function Bookings() {
                   {court2Slots > 0 && (
                     <div>
                       <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">
-                          Court 2
-                        </span>
+                        <span className="text-sm text-gray-500">Court 2</span>
 
                         <span className="font-medium">
                           {court2Slots} Hour
@@ -301,31 +280,21 @@ export default function Bookings() {
 
                   <div className="border-t pt-4">
                     <div className="flex justify-between mb-2">
-                      <span className="text-sm text-gray-500">
-                        Total Slots
-                      </span>
+                      <span className="text-sm text-gray-500">Total Slots</span>
 
-                      <span className="font-semibold">
-                        {totalSlots}
-                      </span>
+                      <span className="font-semibold">{totalSlots}</span>
                     </div>
 
                     <div className="flex justify-between">
-                      <span className="text-sm text-gray-500">
-                        Rate
-                      </span>
+                      <span className="text-sm text-gray-500">Rate</span>
 
-                      <span>
-                        Rs. {SLOT_PRICE.toLocaleString()}
-                      </span>
+                      <span>Rs. {SLOT_PRICE.toLocaleString()}</span>
                     </div>
                   </div>
 
                   <div className="border-t pt-4">
                     <div className="flex justify-between items-center">
-                      <span className="font-medium">
-                        Total Amount
-                      </span>
+                      <span className="font-medium">Total Amount</span>
 
                       <span className="text-2xl font-bold text-amber-600">
                         Rs. {totalAmount.toLocaleString()}
@@ -340,8 +309,10 @@ export default function Bookings() {
                     mt-6
                     h-12
                     rounded-xl
-                    bg-amber-500
-                    hover:bg-amber-600
+                    bg-gradient-to-r
+                from-amber-500
+                via-amber-600
+                to-orange-700
                     text-white
                     font-medium
                     transition-colors
