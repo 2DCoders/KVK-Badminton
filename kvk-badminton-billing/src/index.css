@@ -1,0 +1,114 @@
+@import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+* {
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+}
+
+body {
+  --color-primary: #296BE1;
+  --color-secondary: #0F172A;
+  --color-accent: #7C3AED;
+  --color-muted: #6B7280;
+  --bg-1: #F8FAFC;
+  --bg-2: #F0F2F5;
+  --card-bg: #FFFFFF;
+  --card-foreground: #0B1220;
+
+  background: linear-gradient(135deg, var(--bg-1) 0%, var(--bg-2) 100%);
+  color: var(--color-secondary);
+  min-height: 100vh;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 4px;
+  transition: background 0.3s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Input focus styling */
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="date"],
+input[type="tel"],
+textarea,
+select {
+  transition: all 0.2s;
+}
+
+/* Remove default number input arrows */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Placeholder styling */
+::placeholder {
+  color: #9ca3af;
+}
+
+/* Selection styling */
+::selection {
+  background-color: rgba(41, 107, 225, 0.2);
+  color: #111827;
+}
+
+/* Glass morphism background */
+.glass {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(16, 24, 40, 0.04);
+}
+
+/* Premium card styling */
+.card-premium {
+  background: var(--card-bg);
+  color: var(--card-foreground);
+  backdrop-filter: blur(10px);
+  border-radius: 1rem;
+  border: 1px solid rgba(16, 24, 40, 0.04);
+  box-shadow: 0 6px 24px rgba(16, 24, 40, 0.06);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.card-premium:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(16, 24, 40, 0.12);
+}
+
+/* Standard heading and text sizes for consistency */
+.text-ui-h1 { font-size: 1.5rem; line-height: 2rem; font-weight: 700; }
+.text-ui-h2 { font-size: 1.125rem; line-height: 1.6rem; font-weight: 600; }
+.text-ui-body { font-size: 1rem; line-height: 1.6rem; }
+.text-ui-sm { font-size: 0.875rem; line-height: 1.25rem; }
+
+.btn-elevated { box-shadow: 0 8px 24px rgba(41,107,225,0.08); }
+
