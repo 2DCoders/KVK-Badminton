@@ -39,6 +39,13 @@ export default function Sidebar({ isOpen, isMobile, onClose }: SidebarProps) {
 
   const navItems: NavItem[] = [
     {
+      id: 'court-settings',
+      label: 'Court Settings',
+      icon: Settings,
+      path: '/court-settings',
+      submenu: null,
+    },
+    {
       id: 'bookings',
       label: 'Bookings',
       icon: Calendar,

@@ -8,6 +8,7 @@ import AdminLayout from "./layouts/admin-layout"
 import Dayend from "./pages/dayend"
 import Daypass from "./pages/daypass"
 import Bookings from "./pages/bookings"
+import CourtSettings from "./pages/court-settings"
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
       <Route path="/" element={<Login />} />
       
       {/* Admin Dashboard Routes */}
+      <Route element={<AdminLayout><CourtSettings /></AdminLayout>} path="/court-settings" />
       <Route element={<AdminLayout><Bookings /></AdminLayout>} path="/bookings" />
       <Route element={<AdminLayout><Trainers /></AdminLayout>} path="/trainers" />
       <Route element={<AdminLayout><Daypass /></AdminLayout>} path="/daypass" />
