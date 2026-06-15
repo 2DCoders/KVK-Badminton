@@ -1,6 +1,5 @@
 import { Route, Routes, Navigate } from "react-router-dom"
 import Login from "./pages/login"
-import Members from "./pages/members"
 import Trainers from "./pages/trainers"
 import Payments from "./pages/payments"
 import Reports from "./pages/reports"
@@ -8,6 +7,7 @@ import SettingsPage from "./pages/settings"
 import AdminLayout from "./layouts/admin-layout"
 import Dayend from "./pages/dayend"
 import Daypass from "./pages/daypass"
+import Bookings from "./pages/bookings"
 
 function App() {
   return (
@@ -15,7 +15,7 @@ function App() {
       <Route path="/" element={<Login />} />
       
       {/* Admin Dashboard Routes */}
-      <Route element={<AdminLayout><Members /></AdminLayout>} path="/members" />
+      <Route element={<AdminLayout><Bookings /></AdminLayout>} path="/bookings" />
       <Route element={<AdminLayout><Trainers /></AdminLayout>} path="/trainers" />
       <Route element={<AdminLayout><Daypass /></AdminLayout>} path="/daypass" />
       <Route element={<AdminLayout><Payments /></AdminLayout>} path="/payments" />

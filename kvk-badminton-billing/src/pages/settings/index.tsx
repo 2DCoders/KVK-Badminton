@@ -125,7 +125,7 @@ export default function SettingsPage() {
                                 <input value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} type="password" className="w-full px-3 py-1 border rounded-md" />
                             </div>
                             <div className="flex justify-end">
-                                <button disabled={!currentPassword && !newPassword && !confirmPassword} onClick={handleChangePassword} className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-blue-700">
+                                <button disabled={!currentPassword && !newPassword && !confirmPassword} onClick={handleChangePassword} className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-amber-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-amber-700">
                                     {loading ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
                                     {loading ? "Updating" : "Change Password"}
                                 </button>

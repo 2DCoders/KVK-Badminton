@@ -7,6 +7,7 @@ import {
   Settings,
   ChevronDown,
   Ticket,
+  Calendar,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -38,31 +39,10 @@ export default function Sidebar({ isOpen, isMobile, onClose }: SidebarProps) {
 
   const navItems: NavItem[] = [
     {
-      id: 'members',
-      label: 'Members',
-      icon: Users,
-      path: '/members',
-      submenu: null,
-    },
-    {
-      id: 'trainers',
-      label: 'Trainers',
-      icon: Dumbbell,
-      path: '/trainers',
-      submenu: null,
-    },
-    {
-      id: 'daypass',
-      label: 'Day Pass',
-      icon: Ticket,
-      path: '/daypass',
-      submenu: null,
-    },
-    {
-      id: 'payments',
-      label: 'Payments',
-      icon: CreditCard,
-      path: '/payments',
+      id: 'bookings',
+      label: 'Bookings',
+      icon: Calendar,
+      path: '/bookings',
       submenu: null,
     },
     {
@@ -110,7 +90,7 @@ export default function Sidebar({ isOpen, isMobile, onClose }: SidebarProps) {
               </div>
               {!collapsed && (
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 truncate">KVK Gym System</p>
+                  <p className="text-sm font-semibold text-gray-900 truncate">KVK Badminton System</p>
                   <p className="text-xs text-gray-500">Cashier Panel</p>
                 </div>
               )}

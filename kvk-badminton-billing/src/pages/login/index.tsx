@@ -81,7 +81,7 @@ export default function Login() {
     try {
       const cashier = await login(formData.userId, formData.password);
       localStorage.setItem("cashier", JSON.stringify(cashier));
-      navigate("/members");
+      navigate("/bookings");
     } catch (error) {
       setPageAlert({
         visible: true,
