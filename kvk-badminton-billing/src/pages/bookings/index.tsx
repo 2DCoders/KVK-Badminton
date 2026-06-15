@@ -14,10 +14,13 @@ const SLOT_PRICE = 1500;
 export default function Bookings() {
   const [selectedDate, setSelectedDate] = useState(0);
 
-  const [selectedSlots, setSelectedSlots] = useState<{
-    court: Court;
-    slots: string[];
-  } | null>(null);
+  // Multi-court selections
+  const [selectedSlots, setSelectedSlots] = useState<
+    Record<Court, string[]>
+  >({
+    "Court 1": [],
+    "Court 2": [],
+  });
 
   const days = useMemo(() => {
     return Array.from({ length: 7 }, (_, i) => {
@@ -32,7 +35,6 @@ export default function Bookings() {
                 weekday: "short",
               }),
         day: d.getDate(),
-        full: d,
       };
     });
   }, []);
@@ -50,8 +52,10 @@ export default function Bookings() {
     for (let h = 9; h < 22; h++) {
       let status: Slot["status"] = "available";
 
+      // demo booked slots
       if (h === 12 || h === 17) status = "booked";
 
+      // disable past slots for today
       if (selectedDate === 0) {
         const now = new Date();
 
@@ -75,52 +79,54 @@ export default function Bookings() {
   const toggleSlot = (court: Court, slotId: string) => {
     const slotIndex = slots.findIndex((s) => s.id === slotId);
 
-    if (!selectedSlots || selectedSlots.court !== court) {
-      setSelectedSlots({
-        court,
-        slots: [slotId],
-      });
-      return;
-    }
+    setSelectedSlots((prev) => {
+      const existing = [...prev[court]];
 
-    const existing = [...selectedSlots.slots];
+      // deselect
+      if (existing.includes(slotId)) {
+        return {
+          ...prev,
+          [court]: existing.filter((s) => s !== slotId),
+        };
+      }
 
-    if (existing.includes(slotId)) {
-      const updated = existing.filter((s) => s !== slotId);
+      // first slot
+      if (existing.length === 0) {
+        return {
+          ...prev,
+          [court]: [slotId],
+        };
+      }
 
-      setSelectedSlots(
-        updated.length
-          ? {
-              court,
-              slots: updated,
-            }
-          : null
+      const indexes = existing.map((s) =>
+        slots.findIndex((x) => x.id === s)
       );
 
-      return;
-    }
+      const min = Math.min(...indexes);
+      const max = Math.max(...indexes);
 
-    const indexes = existing.map((s) =>
-      slots.findIndex((x) => x.id === s)
-    );
+      // allow only consecutive extension
+      if (slotIndex === min - 1 || slotIndex === max + 1) {
+        return {
+          ...prev,
+          [court]: [...existing, slotId],
+        };
+      }
 
-    const min = Math.min(...indexes);
-    const max = Math.max(...indexes);
-
-    if (slotIndex === min - 1 || slotIndex === max + 1) {
-      setSelectedSlots({
-        court,
-        slots: [...existing, slotId],
-      });
-    }
+      return prev;
+    });
   };
 
   const isSelected = (court: Court, slotId: string) =>
-    selectedSlots?.court === court &&
-    selectedSlots.slots.includes(slotId);
+    selectedSlots[court]?.includes(slotId);
 
-  const duration = selectedSlots?.slots.length ?? 0;
-  const total = duration * SLOT_PRICE;
+  const court1Slots = selectedSlots["Court 1"].length;
+  const court2Slots = selectedSlots["Court 2"].length;
+
+  const totalSlots = court1Slots + court2Slots;
+  const totalAmount = totalSlots * SLOT_PRICE;
+
+  const hasSelection = totalSlots > 0;
 
   const renderCourt = (court: Court) => (
     <div className="bg-white rounded-2xl border border-gray-200 p-5">
@@ -128,11 +134,16 @@ export default function Bookings() {
         <h3 className="font-semibold text-gray-900">{court}</h3>
 
         <span className="text-xs text-gray-500">
-          {slots.filter((s) => s.status === "available").length} Available
+          {
+            slots.filter(
+              (slot) => slot.status === "available"
+            ).length
+          }{" "}
+          Available
         </span>
       </div>
 
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2">
         {slots.map((slot) => {
           const selected = isSelected(court, slot.id);
 
@@ -144,17 +155,18 @@ export default function Bookings() {
               className={`
                 h-11
                 rounded-xl
+                border
                 text-sm
                 font-medium
-                border
-                transition-all duration-200
+                transition-all
+                cursor-pointer
                 ${
                   selected
                     ? "border-amber-500 bg-amber-50 text-amber-700"
                     : slot.status === "booked"
-                    ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                    ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
                     : slot.status === "past"
-                    ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed"
+                    ? "bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed"
                     : "bg-white border-gray-200 hover:border-gray-400"
                 }
               `}
@@ -177,32 +189,37 @@ export default function Bookings() {
         </h1>
 
         <p className="text-sm text-gray-500 mt-1">
-          Select a court and choose consecutive time slots.
+          Select consecutive slots from one or multiple courts.
         </p>
       </div>
 
-      {/* Date Picker */}
+      {/* Date Selector */}
 
       <div className="mb-6 overflow-x-auto">
-        <div className="flex gap-2 min-w-max">
+        <div className="flex justify-between gap-2 min-w-max">
           {days.map((day, index) => (
             <button
               key={index}
               onClick={() => {
                 setSelectedDate(index);
-                setSelectedSlots(null);
+
+                setSelectedSlots({
+                  "Court 1": [],
+                  "Court 2": [],
+                });
               }}
               className={`
-                px-4
-                py-3
+                min-w-[120px]
                 rounded-xl
                 border
-                min-w-[90px]
+                px-4
+                py-3
+                cursor-pointer
                 transition-all
                 ${
                   selectedDate === index
                     ? "border-amber-500 bg-amber-50 text-amber-700"
-                    : "border-gray-200 bg-white hover:border-gray-300"
+                    : "bg-white border-gray-200 hover:border-gray-300"
                 }
               `}
             >
@@ -220,7 +237,7 @@ export default function Bookings() {
 
       {/* Main Layout */}
 
-      <div className="grid lg:grid-cols-[1fr_320px] gap-6">
+      <div className="grid lg:grid-cols-[1fr_340px] gap-6">
         {/* Courts */}
 
         <div className="space-y-4">
@@ -239,47 +256,81 @@ export default function Bookings() {
               </h3>
             </div>
 
-            {selectedSlots ? (
+            {!hasSelection ? (
+              <div className="py-8 text-center">
+                <p className="text-sm text-gray-500">
+                  Select slots to continue
+                </p>
+              </div>
+            ) : (
               <>
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-xs text-gray-500">
-                      Court
-                    </p>
+                <div className="space-y-5">
+                  {/* Court 1 */}
 
-                    <p className="font-medium">
-                      {selectedSlots.court}
-                    </p>
+                  {court1Slots > 0 && (
+                    <div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-500">
+                          Court 1
+                        </span>
+
+                        <span className="font-medium">
+                          {court1Slots} Hour
+                          {court1Slots > 1 ? "s" : ""}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Court 2 */}
+
+                  {court2Slots > 0 && (
+                    <div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-500">
+                          Court 2
+                        </span>
+
+                        <span className="font-medium">
+                          {court2Slots} Hour
+                          {court2Slots > 1 ? "s" : ""}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="border-t pt-4">
+                    <div className="flex justify-between mb-2">
+                      <span className="text-sm text-gray-500">
+                        Total Slots
+                      </span>
+
+                      <span className="font-semibold">
+                        {totalSlots}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-500">
+                        Rate
+                      </span>
+
+                      <span>
+                        Rs. {SLOT_PRICE.toLocaleString()}
+                      </span>
+                    </div>
                   </div>
 
-                  <div>
-                    <p className="text-xs text-gray-500">
-                      Selected Slots
-                    </p>
+                  <div className="border-t pt-4">
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium">
+                        Total Amount
+                      </span>
 
-                    <p className="font-medium">
-                      {duration}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-gray-500">
-                      Duration
-                    </p>
-
-                    <p className="font-medium">
-                      {duration} Hour{duration > 1 ? "s" : ""}
-                    </p>
-                  </div>
-
-                  <div className="pt-3 border-t">
-                    <p className="text-xs text-gray-500">
-                      Total Amount
-                    </p>
-
-                    <p className="text-2xl font-bold text-amber-600">
-                      Rs. {total.toLocaleString()}
-                    </p>
+                      <span className="text-2xl font-bold text-amber-600">
+                        Rs. {totalAmount.toLocaleString()}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -298,18 +349,13 @@ export default function Bookings() {
                     items-center
                     justify-center
                     gap-2
+                    cursor-pointer
                   "
                 >
                   Confirm Booking
                   <ChevronRight size={18} />
                 </button>
               </>
-            ) : (
-              <div className="text-center py-8">
-                <p className="text-sm text-gray-500">
-                  Select consecutive slots to continue.
-                </p>
-              </div>
             )}
           </div>
         </div>
