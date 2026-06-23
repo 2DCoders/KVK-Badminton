@@ -3,16 +3,7 @@ import { Eye, Save, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import { getCourts, updateCourt } from "@/services/courts-api";
 import { Alert } from "@/components/ui/alert";
-import { createSlot, getSlotById } from "@/services/slots-api";
-
-interface CourtConfig {
-  enabled: boolean;
-  price: number;
-  startTime: string;
-  endTime: string;
-  duration: number;
-  gap: number;
-}
+import { createSlot, getSlotById, updateSlot } from "@/services/slots-api";
 
 export default function CourtSettings() {
   const [showSlotsModal, setShowSlotsModal] = useState(false);
@@ -50,6 +41,10 @@ export default function CourtSettings() {
     try {
       const response = await getSlotById(id);
       setSlot(response);
+      setStartTime(response.startTime);
+      setEndTime(response.endTime);
+      setDuration(response.slotDurationMinutes);
+      setGap(response.slotGapMinutes);
     } catch (error) {
       setSlot(null);
     }
@@ -99,7 +94,7 @@ export default function CourtSettings() {
         title: "Slot Created",
         description: "Successfully created slot for the court.",
       });
-      // await handleFetchSlots();
+      await handleFetchSlot(courtId);
     } catch (error) {
       setPageAlert({
         visible: true,
@@ -107,6 +102,37 @@ export default function CourtSettings() {
         title: "Create Slot Failed",
         description:
           "An error occurred while creating the slot. Please try again.",
+      });
+    }
+  };
+
+  const handleUpdateSlot = async () => {
+    const body = {
+      id: slot?.id,
+      courtId: slot?.courtId,
+      startTime,
+      endTime,
+      slotDurationMinutes: duration,
+      slotGapMinutes: gap,
+      isActive: 1,
+    };
+
+    try {
+      await updateSlot(slot?.id, body);
+      setPageAlert({
+        visible: true,
+        variant: "success",
+        title: "Slot Updated",
+        description: "Successfully updated slot for the court.",
+      });
+      await handleFetchSlot(slot?.courtId);
+    } catch (error) {
+      setPageAlert({
+        visible: true,
+        variant: "error",
+        title: "Update Slot Failed",
+        description:
+          "An error occurred while updating the slot. Please try again.",
       });
     }
   };
@@ -274,21 +300,21 @@ export default function CourtSettings() {
               <div className="grid md:grid-cols-1 gap-5">
                 <div className="flex items-center justify-between mb-5">
                   <h3 className="font-semibold mb-5">
-                  {selectedCourtId
-                    ? courts.find((c) => c.id === selectedCourtId)?.name
-                    : "Select a Court"}
-                </h3>
-                <button
-                  className="h-10 w-10 px-3 rounded-xl bg-gradient-to-r
+                    {selectedCourtId
+                      ? courts.find((c) => c.id === selectedCourtId)?.name
+                      : "Select a Court"}
+                  </h3>
+                  <button
+                    className="h-10 w-10 px-3 rounded-xl bg-gradient-to-r
                         cursor-pointer
                         from-amber-500
                         via-amber-600
                         to-orange-700 text-white flex items-center gap-2"
-                >
-                  <Save size={18} />
-                </button>
+                    onClick={() => handleCreateSlot(selectedCourtId)}
+                  >
+                    <Save size={18} />
+                  </button>
                 </div>
-                
 
                 <div className="space-y-4">
                   <div>
@@ -341,6 +367,83 @@ export default function CourtSettings() {
                 </div>
               </div>
             </>
+          )}
+
+          {slot && (
+            <div>
+              <p className="text-sm text-gray-500 mb-5">
+                Slot configuration found for the selected court.
+              </p>
+              <div className="grid md:grid-cols-1 gap-5">
+                <div className="flex items-center justify-between mb-5">
+                  <h3 className="font-semibold mb-5">
+                    {selectedCourtId
+                      ? courts.find((c) => c.id === selectedCourtId)?.name
+                      : "Select a Court"}
+                  </h3>
+                  <button
+                    className="h-10 w-10 px-3 rounded-xl bg-gradient-to-r
+                        cursor-pointer
+                        from-amber-500
+                        via-amber-600
+                        to-orange-700 text-white flex items-center gap-2"
+                    onClick={() => handleUpdateSlot()}
+                  >
+                    <Save size={18} />
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm text-gray-600 block mb-2">
+                      Start Time
+                    </label>
+                    <input
+                      type="time"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                      className="w-full h-11 rounded-xl border border-gray-200 px-3"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-gray-600 block mb-2">
+                      End Time
+                    </label>
+                    <input
+                      type="time"
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                      className="w-full h-11 rounded-xl border border-gray-200 px-3"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-gray-600 block mb-2">
+                      Slot Duration (minutes)
+                    </label>
+                    <input
+                      type="number"
+                      value={duration}
+                      onChange={(e) => setDuration(parseInt(e.target.value))}
+                      className="w-full h-11 rounded-xl border border-gray-200 px-3"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-gray-600 block mb-2">
+                      Slot Gap (minutes)
+                    </label>
+                    <input
+                      type="number"
+                      value={gap}
+                      onChange={(e) => setGap(parseInt(e.target.value))}
+                      className="w-full h-11 rounded-xl border border-gray-200 px-3"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </div>
