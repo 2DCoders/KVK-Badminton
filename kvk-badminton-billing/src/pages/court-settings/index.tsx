@@ -20,8 +20,10 @@ export default function CourtSettings() {
     title?: string;
     description?: string;
   }>({ visible: false });
+  const [loading, setLoading] = useState(false);
 
   const handleFetchCourts = async () => {
+    setLoading(true);
     try {
       const response = await getCourts();
       setCourts(response);
@@ -33,11 +35,13 @@ export default function CourtSettings() {
         description:
           "An error occurred while fetching court data. Please try again.",
       });
-      console.error(error);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleFetchSlot = async (id: string) => {
+    setLoading(true);
     try {
       const response = await getSlotById(id);
       setSlot(response);
@@ -47,11 +51,13 @@ export default function CourtSettings() {
       setGap(response.slotGapMinutes);
     } catch (error) {
       setSlot(null);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleUpdateCourt = async (courtId: string, courtData: any) => {
-    console.log("Updating court:", courtData);
+    setLoading(true);
 
     if (courtData.status === 0) {
       courtData.status = 2; // Set to 2 (inactive) when toggled off
@@ -73,6 +79,8 @@ export default function CourtSettings() {
         description:
           "An error occurred while updating the court. Please try again.",
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -85,6 +93,8 @@ export default function CourtSettings() {
       slotGapMinutes: gap,
       isActive: 1,
     };
+
+    setLoading(true);
 
     try {
       await createSlot(body);
@@ -103,6 +113,8 @@ export default function CourtSettings() {
         description:
           "An error occurred while creating the slot. Please try again.",
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -116,6 +128,8 @@ export default function CourtSettings() {
       slotGapMinutes: gap,
       isActive: 1,
     };
+
+    setLoading(true);
 
     try {
       await updateSlot(slot?.id, body);
@@ -134,6 +148,8 @@ export default function CourtSettings() {
         description:
           "An error occurred while updating the slot. Please try again.",
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -153,6 +169,15 @@ export default function CourtSettings() {
               onClose={() => setPageAlert((s) => ({ ...s, visible: false }))}
             />
           </div>
+        )}
+        {loading && createPortal (
+          <div className="fixed inset-0 z-[9999999999] flex items-center justify-center bg-black/60 backdrop-blur-md">
+            <div className="flex flex-col items-center gap-3">
+              <div className="h-14 w-14 animate-spin rounded-full border-4 border-white/30 border-t-white"></div>
+              <p className="text-sm text-white font-medium">Loading</p>
+            </div>
+          </div>,
+          document.body
         )}
         <div>
           <h1 className="text-2xl font-semibold">Court Settings</h1>
@@ -305,7 +330,7 @@ export default function CourtSettings() {
                       : "Select a Court"}
                   </h3>
                   <button
-                    className="h-10 w-10 px-3 rounded-xl bg-gradient-to-r
+                    className="h-10 px-3 rounded-xl bg-gradient-to-r
                         cursor-pointer
                         from-amber-500
                         via-amber-600
@@ -313,10 +338,11 @@ export default function CourtSettings() {
                     onClick={() => handleCreateSlot(selectedCourtId)}
                   >
                     <Save size={18} />
+                    Create
                   </button>
                 </div>
 
-                <div className="space-y-4">
+                <div  className="space-y-4 md:grid md:grid-cols-2 md:gap-5">
                   <div>
                     <label className="text-sm text-gray-600 block mb-2">
                       Start Time
@@ -382,7 +408,7 @@ export default function CourtSettings() {
                       : "Select a Court"}
                   </h3>
                   <button
-                    className="h-10 w-10 px-3 rounded-xl bg-gradient-to-r
+                    className="h-10 px-3 rounded-xl bg-gradient-to-r
                         cursor-pointer
                         from-amber-500
                         via-amber-600
@@ -390,10 +416,11 @@ export default function CourtSettings() {
                     onClick={() => handleUpdateSlot()}
                   >
                     <Save size={18} />
+                    Update
                   </button>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-4 md:grid md:grid-cols-2 md:gap-5">
                   <div>
                     <label className="text-sm text-gray-600 block mb-2">
                       Start Time
