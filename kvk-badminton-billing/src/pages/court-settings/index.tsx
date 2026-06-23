@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Eye, Save, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import { getCourts, updateCourt } from "@/services/courts-api";
+import { Alert } from "@/components/ui/alert";
+import { createSlot, getSlotById } from "@/services/slots-api";
 
 interface CourtConfig {
   enabled: boolean;
@@ -15,13 +17,41 @@ interface CourtConfig {
 export default function CourtSettings() {
   const [showSlotsModal, setShowSlotsModal] = useState(false);
   const [courts, setCourts] = useState<any[]>([]);
+  const [slot, setSlot] = useState<any | null>(null);
+  const [startTime, setStartTime] = useState("09:00");
+  const [endTime, setEndTime] = useState("22:00");
+  const [duration, setDuration] = useState(60);
+  const [gap, setGap] = useState(0);
+  const [selectedCourtId, setSelectedCourtId] = useState("");
+  const [pageAlert, setPageAlert] = useState<{
+    visible: boolean;
+    variant?: "success" | "error" | "warning" | "info";
+    title?: string;
+    description?: string;
+  }>({ visible: false });
 
   const handleFetchCourts = async () => {
     try {
       const response = await getCourts();
       setCourts(response);
     } catch (error) {
+      setPageAlert({
+        visible: true,
+        variant: "error",
+        title: "Fetch Courts Failed",
+        description:
+          "An error occurred while fetching court data. Please try again.",
+      });
       console.error(error);
+    }
+  };
+
+  const handleFetchSlot = async (id: string) => {
+    try {
+      const response = await getSlotById(id);
+      setSlot(response);
+    } catch (error) {
+      setSlot(null);
     }
   };
 
@@ -33,9 +63,51 @@ export default function CourtSettings() {
     }
     try {
       await updateCourt(courtId, courtData);
+      setPageAlert({
+        visible: true,
+        variant: "success",
+        title: "Court Updated",
+        description: "Successfully updated.",
+      });
       await handleFetchCourts();
     } catch (error) {
-      console.error(error);
+      setPageAlert({
+        visible: true,
+        variant: "error",
+        title: "Update Court Failed",
+        description:
+          "An error occurred while updating the court. Please try again.",
+      });
+    }
+  };
+
+  const handleCreateSlot = async (courtId: string) => {
+    const body = {
+      courtId,
+      startTime,
+      endTime,
+      slotDurationMinutes: duration,
+      slotGapMinutes: gap,
+      isActive: 1,
+    };
+
+    try {
+      await createSlot(body);
+      setPageAlert({
+        visible: true,
+        variant: "success",
+        title: "Slot Created",
+        description: "Successfully created slot for the court.",
+      });
+      // await handleFetchSlots();
+    } catch (error) {
+      setPageAlert({
+        visible: true,
+        variant: "error",
+        title: "Create Slot Failed",
+        description:
+          "An error occurred while creating the slot. Please try again.",
+      });
     }
   };
 
@@ -46,6 +118,16 @@ export default function CourtSettings() {
   return (
     <>
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+        {pageAlert.visible && (
+          <div>
+            <Alert
+              variant={pageAlert.variant as any}
+              title={pageAlert.title}
+              description={pageAlert.description}
+              onClose={() => setPageAlert((s) => ({ ...s, visible: false }))}
+            />
+          </div>
+        )}
         <div>
           <h1 className="text-2xl font-semibold">Court Settings</h1>
 
@@ -135,7 +217,7 @@ export default function CourtSettings() {
           <div className="flex items-center justify-between mb-6">
             <h2 className="font-semibold">Slot Configuration</h2>
 
-            <div className="flex gap-3">
+            {/* <div className="flex gap-3">
               <button
                 onClick={() => setShowSlotsModal(true)}
                 className="h-11 px-5 rounded-xl border cursor-pointer border-gray-200 flex items-center gap-2"
@@ -154,16 +236,59 @@ export default function CourtSettings() {
                 <Save size={18} />
                 Save Slots
               </button>
-            </div>
+            </div> */}
           </div>
 
-          <div className="grid md:grid-cols-2 gap-5">
-            {courts.map((court, index) => (
-              <div
-                key={court.id}
-                className="bg-white rounded-2xl border border-gray-200 p-5"
-              >
-                <h3 className="font-semibold mb-5">{court.name}</h3>
+          <div className="mb-6">
+            <label className="text-sm text-gray-600 block mb-2">
+              Active Slot Configuration
+            </label>
+
+            <select
+              value={selectedCourtId}
+              onChange={(e) => {
+                setSelectedCourtId(e.target.value);
+                handleFetchSlot(e.target.value);
+              }}
+              className="w-full md:w-80 h-11 rounded-xl border border-gray-200 px-3 bg-white cursor-pointer"
+            >
+              <option value="">Select a slot configuration</option>
+
+              {courts
+                .filter((c) => c.status === 1)
+                .map((court) => (
+                  <option key={court.id} value={court.id}>
+                    {court.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+
+          {slot === "" && (
+            <>
+              <p className="text-sm text-gray-500 mb-5">
+                No slot configurations found. Please configure courts to
+                generate slots.
+              </p>
+
+              <div className="grid md:grid-cols-1 gap-5">
+                <div className="flex items-center justify-between mb-5">
+                  <h3 className="font-semibold mb-5">
+                  {selectedCourtId
+                    ? courts.find((c) => c.id === selectedCourtId)?.name
+                    : "Select a Court"}
+                </h3>
+                <button
+                  className="h-10 w-10 px-3 rounded-xl bg-gradient-to-r
+                        cursor-pointer
+                        from-amber-500
+                        via-amber-600
+                        to-orange-700 text-white flex items-center gap-2"
+                >
+                  <Save size={18} />
+                </button>
+                </div>
+                
 
                 <div className="space-y-4">
                   <div>
@@ -172,7 +297,8 @@ export default function CourtSettings() {
                     </label>
                     <input
                       type="time"
-                      value={court.startTime || "09:00"}
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
                       className="w-full h-11 rounded-xl border border-gray-200 px-3"
                     />
                   </div>
@@ -183,36 +309,39 @@ export default function CourtSettings() {
                     </label>
                     <input
                       type="time"
-                      value={court.endTime || "22:00"}
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
                       className="w-full h-11 rounded-xl border border-gray-200 px-3"
                     />
                   </div>
 
                   <div>
                     <label className="text-sm text-gray-600 block mb-2">
-                      Slot Duration
+                      Slot Duration (minutes)
                     </label>
                     <input
                       type="number"
-                      value={court.duration || 60}
+                      value={duration}
+                      onChange={(e) => setDuration(parseInt(e.target.value))}
                       className="w-full h-11 rounded-xl border border-gray-200 px-3"
                     />
                   </div>
 
                   <div>
                     <label className="text-sm text-gray-600 block mb-2">
-                      Slot Gap
+                      Slot Gap (minutes)
                     </label>
                     <input
                       type="number"
-                      value={court.gap || 0}
+                      value={gap}
+                      onChange={(e) => setGap(parseInt(e.target.value))}
                       className="w-full h-11 rounded-xl border border-gray-200 px-3"
                     />
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
+            </>
+          )}
         </div>
       </div>
 

@@ -153,7 +153,7 @@ export default function Login() {
                   Manage Your Badminton Arena
                 </h2>
                 <p className="text-lg text-gray-300 leading-relaxed">
-                  Manage court bookings, player memberships, coaching schedules, tournaments, and payments from one powerful dashboard.
+                  Manage court bookings and payments from one powerful dashboard.
                 </p>
               </div>
 
