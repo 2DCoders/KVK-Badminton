@@ -331,6 +331,7 @@ export default function CourtSettings() {
                   </h3>
                   <button
                     className="h-10 px-3 rounded-xl bg-gradient-to-r
+                        disabled:opacity-50 disabled:cursor-not-allowed
                         cursor-pointer
                         from-amber-500
                         via-amber-600
@@ -410,6 +411,7 @@ export default function CourtSettings() {
                   <button
                     className="h-10 px-3 rounded-xl bg-gradient-to-r
                         cursor-pointer
+                        disabled:opacity-50 disabled:cursor-not-allowed
                         from-amber-500
                         via-amber-600
                         to-orange-700 text-white flex items-center gap-2"
