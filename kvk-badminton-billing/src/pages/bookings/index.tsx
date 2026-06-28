@@ -27,30 +27,30 @@ const SLOT_PRICE = 1500;
 export default function Bookings() {
   const [selectedDate, setSelectedDate] = useState(0);
   const [days, setDays] = useState<
-  {
-    label: string;
-    day: number;
-    date: string;
-  }[]
->([]);
-const [courts, setCourts] = useState<any[]>([]);
-const [selectedCourtId, setSelectedCourtId] = useState("");
+    {
+      label: string;
+      day: number;
+      date: string;
+    }[]
+  >([]);
+  const [courts, setCourts] = useState<any[]>([]);
+  const [selectedCourtId, setSelectedCourtId] = useState("");
 
-const [slots, setSlots] = useState<any[]>([]);
+  const [slots, setSlots] = useState<any[]>([]);
 
-const handleGetCourts = async () => {
-  try {
-    const response = await getCourts();
+  const handleGetCourts = async () => {
+    try {
+      const response = await getCourts();
 
-    setCourts(response);
+      setCourts(response);
 
-    if (response.length > 0) {
-      setSelectedCourtId(response[0].id);
+      if (response.length > 0) {
+        setSelectedCourtId(response[0].id);
+      }
+    } catch (error) {
+      console.error("Error fetching courts:", error);
     }
-  } catch (error) {
-    console.error("Error fetching courts:", error);
-  }
-};
+  };
 
   // Multi-court selections
   const [selectedSlots, setSelectedSlots] = useState<Record<Court, string[]>>({
@@ -58,50 +58,50 @@ const handleGetCourts = async () => {
     "Court 2": [],
   });
 
-const handleGetNextWorkingDays = async () => {
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
+  const handleGetNextWorkingDays = async () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
 
-  const startDate = yesterday.toISOString().split("T")[0];
+    const startDate = yesterday.toISOString().split("T")[0];
 
-  try {
-    const workingDays = await getNextWorkingDays(startDate, 7);
+    try {
+      const workingDays = await getNextWorkingDays(startDate, 7);
 
-    const mappedDays = workingDays.map(
-      (dateString: string, index: number) => {
-        const date = new Date(dateString);
+      const mappedDays = workingDays.map(
+        (dateString: string, index: number) => {
+          const date = new Date(dateString);
 
-        return {
-          label:
-            index === 0
-              ? "Today"
-              : date.toLocaleDateString("en-US", {
+          return {
+            label:
+              index === 0
+                ? "Today"
+                : date.toLocaleDateString("en-US", {
                   weekday: "short",
                 }),
-          day: date.getDate(),
-          date: dateString,
-        };
-      }
-    );
+            day: date.getDate(),
+            date: dateString,
+          };
+        }
+      );
 
-    setDays(mappedDays);
-  } catch (error) {
-    console.error("Error fetching next working days:", error);
-  }
-};
+      setDays(mappedDays);
+    } catch (error) {
+      console.error("Error fetching next working days:", error);
+    }
+  };
 
-const handleGetSlotsAvailability = async (
-  courtId: string,
-  date: string
-) => {
-  try {
-    const availability = await getSlotsAvailability(courtId, date);
+  const handleGetSlotsAvailability = async (
+    courtId: string,
+    date: string
+  ) => {
+    try {
+      const availability = await getSlotsAvailability(courtId, date);
 
-    setSlots(availability);
-  } catch (error) {
-    console.error("Error fetching slots availability:", error);
-  }
-};
+      setSlots(availability);
+    } catch (error) {
+      console.error("Error fetching slots availability:", error);
+    }
+  };
 
   useEffect(() => {
     handleGetNextWorkingDays();
@@ -109,14 +109,14 @@ const handleGetSlotsAvailability = async (
   }, []);
 
   useEffect(() => {
-  if (!selectedCourtId) return;
-  if (days.length === 0) return;
+    if (!selectedCourtId) return;
+    if (days.length === 0) return;
 
-  handleGetSlotsAvailability(
-    selectedCourtId,
-    days[selectedDate].date
-  );
-}, [selectedCourtId, selectedDate, days]);
+    handleGetSlotsAvailability(
+      selectedCourtId,
+      days[selectedDate].date
+    );
+  }, [selectedCourtId, selectedDate, days]);
 
   function formatHour(hour: number) {
     const suffix = hour >= 12 ? "PM" : "AM";
@@ -126,34 +126,34 @@ const handleGetSlotsAvailability = async (
   }
 
   const formattedSlots: Slot[] = useMemo(() => {
-  return slots.map((slot) => {
-    let status: Slot["status"] = "available";
+    return slots.map((slot) => {
+      let status: Slot["status"] = "available";
 
-    if (slot.isBooked) {
-      status = "booked";
-    }
-
-    if (selectedDate === 0) {
-      const now = new Date();
-      const hour = Number(slot.startTime.split(":")[0]);
-
-      if (hour < now.getHours()) {
-        status = "past";
+      if (slot.isBooked) {
+        status = "booked";
       }
-    }
 
-    const date = new Date(`2000-01-01T${slot.startTime}`);
+      if (selectedDate === 0) {
+        const now = new Date();
+        const hour = Number(slot.startTime.split(":")[0]);
 
-    return {
-      id: slot.id,
-      time: date.toLocaleTimeString([], {
-        hour: "numeric",
-        minute: "2-digit",
-      }),
-      status,
-    };
-  });
-}, [slots, selectedDate]);
+        if (hour < now.getHours()) {
+          status = "past";
+        }
+      }
+
+      const date = new Date(`2000-01-01T${slot.startTime}`);
+
+      return {
+        id: slot.id,
+        time: date.toLocaleTimeString([], {
+          hour: "numeric",
+          minute: "2-digit",
+        }),
+        status,
+      };
+    });
+  }, [slots, selectedDate]);
 
   const toggleSlot = (court: Court, slotId: string) => {
     const slotIndex = formattedSlots.findIndex((s) => s.id === slotId);
@@ -178,8 +178,8 @@ const handleGetSlotsAvailability = async (
       }
 
       const indexes = existing.map((s) =>
-  formattedSlots.findIndex((x) => x.id === s)
-);
+        formattedSlots.findIndex((x) => x.id === s)
+      );
 
       const min = Math.min(...indexes);
       const max = Math.max(...indexes);
@@ -269,16 +269,16 @@ const handleGetSlotsAvailability = async (
       <div className="mb-6 overflow-x-auto">
         <div className="flex justify-between gap-2 min-w-max">
           {days.map((day, index) => (
-  <button
-    key={day.date}
-    onClick={() => {
-  setSelectedDate(index);
-  setSelectedSlots({
-    "Court 1": [],
-    "Court 2": [],
-  });
-}}
-    className={`
+            <button
+              key={day.date}
+              onClick={() => {
+                setSelectedDate(index);
+                setSelectedSlots({
+                  "Court 1": [],
+                  "Court 2": [],
+                });
+              }}
+              className={`
       min-w-[120px]
       rounded-xl
       border
@@ -286,17 +286,16 @@ const handleGetSlotsAvailability = async (
       py-3
       cursor-pointer
       transition-all
-      ${
-        selectedDate === index
-          ? "border-amber-500 bg-amber-50 text-amber-700"
-          : "bg-white border-gray-200 hover:border-gray-300"
-      }
+      ${selectedDate === index
+                  ? "border-amber-500 bg-amber-50 text-amber-700"
+                  : "bg-white border-gray-200 hover:border-gray-300"
+                }
     `}
-  >
-    <div className="text-xs font-medium">{day.label}</div>
-    <div className="text-base font-semibold">{day.day}</div>
-  </button>
-))}
+            >
+              <div className="text-xs font-medium">{day.label}</div>
+              <div className="text-base font-semibold">{day.day}</div>
+            </button>
+          ))}
         </div>
       </div>
 
