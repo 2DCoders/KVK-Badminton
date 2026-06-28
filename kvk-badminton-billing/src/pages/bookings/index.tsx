@@ -3,8 +3,7 @@ import { Calendar, ChevronRight } from "lucide-react";
 import { getNextWorkingDays } from "@/services/holidays-api";
 import { getSlotsAvailability } from "@/services/slots-api";
 import { getCourts } from "@/services/courts-api";
-
-type Court = "Court 1" | "Court 2";
+import { bookingSlots } from "@/services/booking-api";
 
 interface Slot {
   id: string;
@@ -34,9 +33,13 @@ export default function Bookings() {
     }[]
   >([]);
   const [courts, setCourts] = useState<any[]>([]);
-  const [selectedCourtId, setSelectedCourtId] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [paymentTypes, setPaymentTypes] = useState(0);
 
-  const [slots, setSlots] = useState<any[]>([]);
+  const [courtSlots, setCourtSlots] = useState<
+    Record<string, SlotAvailability[]>
+  >({});
 
   const handleGetCourts = async () => {
     try {
@@ -44,19 +47,15 @@ export default function Bookings() {
 
       setCourts(response);
 
-      if (response.length > 0) {
-        setSelectedCourtId(response[0].id);
-      }
     } catch (error) {
       console.error("Error fetching courts:", error);
     }
   };
 
-  // Multi-court selections
-  const [selectedSlots, setSelectedSlots] = useState<Record<Court, string[]>>({
-    "Court 1": [],
-    "Court 2": [],
-  });
+  const [selectedSlots, setSelectedSlots] = useState<
+    Record<string, string[]>
+  >({});
+
 
   const handleGetNextWorkingDays = async () => {
     const yesterday = new Date();
@@ -90,16 +89,28 @@ export default function Bookings() {
     }
   };
 
-  const handleGetSlotsAvailability = async (
-    courtId: string,
-    date: string
-  ) => {
+  const handleGetSlotsAvailability = async (date: string) => {
     try {
-      const availability = await getSlotsAvailability(courtId, date);
+      const responses = await Promise.all(
+        courts.map(async (court) => {
+          const slots = await getSlotsAvailability(court.id, date);
 
-      setSlots(availability);
+          return {
+            courtId: court.id,
+            slots,
+          };
+        })
+      );
+
+      const mapped: Record<string, SlotAvailability[]> = {};
+
+      responses.forEach((item) => {
+        mapped[item.courtId] = item.slots;
+      });
+
+      setCourtSlots(mapped);
     } catch (error) {
-      console.error("Error fetching slots availability:", error);
+      console.error(error);
     }
   };
 
@@ -109,24 +120,92 @@ export default function Bookings() {
   }, []);
 
   useEffect(() => {
-    if (!selectedCourtId) return;
-    if (days.length === 0) return;
+    if (!days.length || !courts.length) return;
 
-    handleGetSlotsAvailability(
-      selectedCourtId,
-      days[selectedDate].date
-    );
-  }, [selectedCourtId, selectedDate, days]);
+    handleGetSlotsAvailability(days[selectedDate].date);
+  }, [days, selectedDate, courts]);
 
-  function formatHour(hour: number) {
-    const suffix = hour >= 12 ? "PM" : "AM";
-    const h = hour > 12 ? hour - 12 : hour;
+  const handleBookingMultipleSlots = async () => {
+    try {
 
-    return `${h}${suffix}`;
-  }
+      const bookings = Object.entries(selectedSlots).flatMap(
+        ([courtId, slotIds]) =>
+          slotIds.map((slotId) => ({
+            courtId,
+            courtSlotId: slotId,
+            bookingDate: days[selectedDate].date,
+          }))
+      );
 
-  const formattedSlots: Slot[] = useMemo(() => {
-    return slots.map((slot) => {
+      const payload = {
+        bookings,
+        totalAmount,
+        customerName,
+        phoneNumber,
+        paymentTypes,
+      };
+
+      await bookingSlots(payload);
+
+    } catch (error) {
+      console.error("Error booking slots:", error);
+    }
+  };
+
+  const toggleSlot = (
+    courtId: string,
+    formattedSlots: any[],
+    slotId: string
+  ) => {
+
+    const slotIndex = formattedSlots.findIndex(s => s.id === slotId);
+
+    setSelectedSlots(prev => {
+
+      const existing = [...(prev[courtId] || [])];
+
+      if (existing.includes(slotId)) {
+        return {
+          ...prev,
+          [courtId]: existing.filter(x => x !== slotId),
+        };
+      }
+
+      if (existing.length === 0) {
+        return {
+          ...prev,
+          [courtId]: [slotId],
+        };
+      }
+
+      const indexes = existing.map(id =>
+        formattedSlots.findIndex(x => x.id === id)
+      );
+
+      const min = Math.min(...indexes);
+      const max = Math.max(...indexes);
+
+      if (slotIndex === min - 1 || slotIndex === max + 1) {
+        return {
+          ...prev,
+          [courtId]: [...existing, slotId],
+        };
+      }
+
+      return prev;
+    });
+  };
+
+  const totalSlots = Object.values(selectedSlots).reduce(
+    (sum, slots) => sum + slots.length,
+    0
+  );
+
+  const totalAmount = totalSlots * SLOT_PRICE;
+  const hasSelection = totalSlots > 0;
+
+  const renderCourt = (court: any) => {
+    const formattedSlots: Slot[] = (courtSlots[court.id] || []).map((slot) => {
       let status: Slot["status"] = "available";
 
       if (slot.isBooked) {
@@ -142,91 +221,45 @@ export default function Bookings() {
         }
       }
 
-      const date = new Date(`2000-01-01T${slot.startTime}`);
-
       return {
         id: slot.id,
-        time: date.toLocaleTimeString([], {
+        time: new Date(`2000-01-01T${slot.startTime}`).toLocaleTimeString([], {
           hour: "numeric",
           minute: "2-digit",
         }),
         status,
       };
     });
-  }, [slots, selectedDate]);
 
-  const toggleSlot = (court: Court, slotId: string) => {
-    const slotIndex = formattedSlots.findIndex((s) => s.id === slotId);
+    const availableCount = formattedSlots.filter(
+      (slot) => slot.status === "available"
+    ).length;
 
-    setSelectedSlots((prev) => {
-      const existing = [...prev[court]];
+    return (
+      <div
+        key={court.id}
+        className="bg-white rounded-2xl border border-gray-200 p-5"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-gray-900">{court.name}</h3>
 
-      // deselect
-      if (existing.includes(slotId)) {
-        return {
-          ...prev,
-          [court]: existing.filter((s) => s !== slotId),
-        };
-      }
+          <span className="text-xs text-gray-500">
+            {availableCount} Available
+          </span>
+        </div>
 
-      // first slot
-      if (existing.length === 0) {
-        return {
-          ...prev,
-          [court]: [slotId],
-        };
-      }
+        <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2">
+          {formattedSlots.map((slot) => {
+            const selected = (selectedSlots[court.id] || []).includes(slot.id);
 
-      const indexes = existing.map((s) =>
-        formattedSlots.findIndex((x) => x.id === s)
-      );
-
-      const min = Math.min(...indexes);
-      const max = Math.max(...indexes);
-
-      // allow only consecutive extension
-      if (slotIndex === min - 1 || slotIndex === max + 1) {
-        return {
-          ...prev,
-          [court]: [...existing, slotId],
-        };
-      }
-
-      return prev;
-    });
-  };
-
-  const isSelected = (court: Court, slotId: string) =>
-    selectedSlots[court]?.includes(slotId);
-
-  const court1Slots = selectedSlots["Court 1"].length;
-  const court2Slots = selectedSlots["Court 2"].length;
-
-  const totalSlots = court1Slots + court2Slots;
-  const totalAmount = totalSlots * SLOT_PRICE;
-
-  const hasSelection = totalSlots > 0;
-
-  const renderCourt = (court: Court) => (
-    <div className="bg-white rounded-2xl border border-gray-200 p-5">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold text-gray-900">{court}</h3>
-
-        <span className="text-xs text-gray-500">
-          {formattedSlots.filter((slot) => slot.status === "available").length} Available
-        </span>
-      </div>
-
-      <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2">
-        {formattedSlots.map((slot) => {
-          const selected = isSelected(court, slot.id);
-
-          return (
-            <button
-              key={slot.id}
-              disabled={slot.status !== "available"}
-              onClick={() => toggleSlot(court, slot.id)}
-              className={`
+            return (
+              <button
+                key={slot.id}
+                disabled={slot.status !== "available"}
+                onClick={() =>
+                  toggleSlot(court.id, formattedSlots, slot.id)
+                }
+                className={`
                 h-11
                 rounded-xl
                 border
@@ -235,22 +268,24 @@ export default function Bookings() {
                 transition-all
                 cursor-pointer
                 ${selected
-                  ? "border-amber-500 bg-amber-50 text-amber-700"
-                  : slot.status === "booked"
-                    ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
-                    : slot.status === "past"
-                      ? "bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed"
-                      : "bg-white border-gray-200 hover:border-gray-400"
-                }
+                    ? "border-amber-500 bg-amber-50 text-amber-700"
+                    : slot.status === "booked"
+                      ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                      : slot.status === "past"
+                        ? "bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed"
+                        : "bg-white border-gray-200 hover:border-gray-400"
+                  }
               `}
-            >
-              {slot.time}
-            </button>
-          );
-        })}
+              >
+                {slot.time}
+              </button>
+            );
+          })}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
+
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
@@ -273,10 +308,7 @@ export default function Bookings() {
               key={day.date}
               onClick={() => {
                 setSelectedDate(index);
-                setSelectedSlots({
-                  "Court 1": [],
-                  "Court 2": [],
-                });
+                setSelectedSlots({});
               }}
               className={`
       min-w-[120px]
@@ -305,8 +337,11 @@ export default function Bookings() {
         {/* Courts */}
 
         <div className="space-y-4">
-          {renderCourt("Court 1")}
-          {renderCourt("Court 2")}
+          {courts.map((court) => (
+            <div key={court.id}>
+              {renderCourt(court)}
+            </div>
+          ))}
         </div>
 
         {/* Summary */}
@@ -329,33 +364,25 @@ export default function Bookings() {
                 <div className="space-y-5">
                   {/* Court 1 */}
 
-                  {court1Slots > 0 && (
-                    <div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">Court 1</span>
+                  {courts.map((court) => {
+                    const count = selectedSlots[court.id]?.length || 0;
 
-                        <span className="font-medium">
-                          {court1Slots} Hour
-                          {court1Slots > 1 ? "s" : ""}
-                        </span>
+                    if (count === 0) return null;
+
+                    return (
+                      <div key={court.id}>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-500">
+                            {court.name}
+                          </span>
+
+                          <span className="font-medium">
+                            {count} Hour{count > 1 ? "s" : ""}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  )}
-
-                  {/* Court 2 */}
-
-                  {court2Slots > 0 && (
-                    <div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">Court 2</span>
-
-                        <span className="font-medium">
-                          {court2Slots} Hour
-                          {court2Slots > 1 ? "s" : ""}
-                        </span>
-                      </div>
-                    </div>
-                  )}
+                    );
+                  })}
 
                   <div className="border-t pt-4">
                     <div className="flex justify-between mb-2">
