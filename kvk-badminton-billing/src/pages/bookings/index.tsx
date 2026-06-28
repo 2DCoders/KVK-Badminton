@@ -1,5 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Calendar, ChevronRight } from "lucide-react";
+import { getNextWorkingDays } from "@/services/holidays-api";
+import { getSlotsAvailability } from "@/services/slots-api";
+import { getCourts } from "@/services/courts-api";
 
 type Court = "Court 1" | "Court 2";
 
@@ -9,10 +12,45 @@ interface Slot {
   status: "available" | "booked" | "past";
 }
 
+interface SlotAvailability {
+  id: string;
+  courtId: string;
+  startTime: string;
+  endTime: string;
+  isActive: boolean;
+  price: number;
+  isBooked: boolean;
+}
+
 const SLOT_PRICE = 1500;
 
 export default function Bookings() {
   const [selectedDate, setSelectedDate] = useState(0);
+  const [days, setDays] = useState<
+  {
+    label: string;
+    day: number;
+    date: string;
+  }[]
+>([]);
+const [courts, setCourts] = useState<any[]>([]);
+const [selectedCourtId, setSelectedCourtId] = useState("");
+
+const [slots, setSlots] = useState<any[]>([]);
+
+const handleGetCourts = async () => {
+  try {
+    const response = await getCourts();
+
+    setCourts(response);
+
+    if (response.length > 0) {
+      setSelectedCourtId(response[0].id);
+    }
+  } catch (error) {
+    console.error("Error fetching courts:", error);
+  }
+};
 
   // Multi-court selections
   const [selectedSlots, setSelectedSlots] = useState<Record<Court, string[]>>({
@@ -20,22 +58,65 @@ export default function Bookings() {
     "Court 2": [],
   });
 
-  const days = useMemo(() => {
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() + i);
+const handleGetNextWorkingDays = async () => {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
 
-      return {
-        label:
-          i === 0
-            ? "Today"
-            : d.toLocaleDateString("en-US", {
-                weekday: "short",
-              }),
-        day: d.getDate(),
-      };
-    });
+  const startDate = yesterday.toISOString().split("T")[0];
+
+  try {
+    const workingDays = await getNextWorkingDays(startDate, 7);
+
+    const mappedDays = workingDays.map(
+      (dateString: string, index: number) => {
+        const date = new Date(dateString);
+
+        return {
+          label:
+            index === 0
+              ? "Today"
+              : date.toLocaleDateString("en-US", {
+                  weekday: "short",
+                }),
+          day: date.getDate(),
+          date: dateString,
+        };
+      }
+    );
+
+    setDays(mappedDays);
+  } catch (error) {
+    console.error("Error fetching next working days:", error);
+  }
+};
+
+const handleGetSlotsAvailability = async (
+  courtId: string,
+  date: string
+) => {
+  try {
+    const availability = await getSlotsAvailability(courtId, date);
+
+    setSlots(availability);
+  } catch (error) {
+    console.error("Error fetching slots availability:", error);
+  }
+};
+
+  useEffect(() => {
+    handleGetNextWorkingDays();
+    handleGetCourts();
   }, []);
+
+  useEffect(() => {
+  if (!selectedCourtId) return;
+  if (days.length === 0) return;
+
+  handleGetSlotsAvailability(
+    selectedCourtId,
+    days[selectedDate].date
+  );
+}, [selectedCourtId, selectedDate, days]);
 
   function formatHour(hour: number) {
     const suffix = hour >= 12 ? "PM" : "AM";
@@ -44,38 +125,38 @@ export default function Bookings() {
     return `${h}${suffix}`;
   }
 
-  const generateSlots = () => {
-    const slots: Slot[] = [];
+  const formattedSlots: Slot[] = useMemo(() => {
+  return slots.map((slot) => {
+    let status: Slot["status"] = "available";
 
-    for (let h = 9; h < 22; h++) {
-      let status: Slot["status"] = "available";
-
-      // demo booked slots
-      if (h === 12 || h === 17) status = "booked";
-
-      // disable past slots for today
-      if (selectedDate === 0) {
-        const now = new Date();
-
-        if (h < now.getHours()) {
-          status = "past";
-        }
-      }
-
-      slots.push({
-        id: `${h}`,
-        time: formatHour(h),
-        status,
-      });
+    if (slot.isBooked) {
+      status = "booked";
     }
 
-    return slots;
-  };
+    if (selectedDate === 0) {
+      const now = new Date();
+      const hour = Number(slot.startTime.split(":")[0]);
 
-  const slots = generateSlots();
+      if (hour < now.getHours()) {
+        status = "past";
+      }
+    }
+
+    const date = new Date(`2000-01-01T${slot.startTime}`);
+
+    return {
+      id: slot.id,
+      time: date.toLocaleTimeString([], {
+        hour: "numeric",
+        minute: "2-digit",
+      }),
+      status,
+    };
+  });
+}, [slots, selectedDate]);
 
   const toggleSlot = (court: Court, slotId: string) => {
-    const slotIndex = slots.findIndex((s) => s.id === slotId);
+    const slotIndex = formattedSlots.findIndex((s) => s.id === slotId);
 
     setSelectedSlots((prev) => {
       const existing = [...prev[court]];
@@ -96,7 +177,9 @@ export default function Bookings() {
         };
       }
 
-      const indexes = existing.map((s) => slots.findIndex((x) => x.id === s));
+      const indexes = existing.map((s) =>
+  formattedSlots.findIndex((x) => x.id === s)
+);
 
       const min = Math.min(...indexes);
       const max = Math.max(...indexes);
@@ -130,12 +213,12 @@ export default function Bookings() {
         <h3 className="font-semibold text-gray-900">{court}</h3>
 
         <span className="text-xs text-gray-500">
-          {slots.filter((slot) => slot.status === "available").length} Available
+          {formattedSlots.filter((slot) => slot.status === "available").length} Available
         </span>
       </div>
 
       <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2">
-        {slots.map((slot) => {
+        {formattedSlots.map((slot) => {
           const selected = isSelected(court, slot.id);
 
           return (
@@ -151,14 +234,13 @@ export default function Bookings() {
                 font-medium
                 transition-all
                 cursor-pointer
-                ${
-                  selected
-                    ? "border-amber-500 bg-amber-50 text-amber-700"
-                    : slot.status === "booked"
-                      ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
-                      : slot.status === "past"
-                        ? "bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed"
-                        : "bg-white border-gray-200 hover:border-gray-400"
+                ${selected
+                  ? "border-amber-500 bg-amber-50 text-amber-700"
+                  : slot.status === "booked"
+                    ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                    : slot.status === "past"
+                      ? "bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed"
+                      : "bg-white border-gray-200 hover:border-gray-400"
                 }
               `}
             >
@@ -187,36 +269,34 @@ export default function Bookings() {
       <div className="mb-6 overflow-x-auto">
         <div className="flex justify-between gap-2 min-w-max">
           {days.map((day, index) => (
-            <button
-              key={index}
-              onClick={() => {
-                setSelectedDate(index);
-
-                setSelectedSlots({
-                  "Court 1": [],
-                  "Court 2": [],
-                });
-              }}
-              className={`
-                min-w-[120px]
-                rounded-xl
-                border
-                px-4
-                py-3
-                cursor-pointer
-                transition-all
-                ${
-                  selectedDate === index
-                    ? "border-amber-500 bg-amber-50 text-amber-700"
-                    : "bg-white border-gray-200 hover:border-gray-300"
-                }
-              `}
-            >
-              <div className="text-xs font-medium">{day.label}</div>
-
-              <div className="text-base font-semibold">{day.day}</div>
-            </button>
-          ))}
+  <button
+    key={day.date}
+    onClick={() => {
+  setSelectedDate(index);
+  setSelectedSlots({
+    "Court 1": [],
+    "Court 2": [],
+  });
+}}
+    className={`
+      min-w-[120px]
+      rounded-xl
+      border
+      px-4
+      py-3
+      cursor-pointer
+      transition-all
+      ${
+        selectedDate === index
+          ? "border-amber-500 bg-amber-50 text-amber-700"
+          : "bg-white border-gray-200 hover:border-gray-300"
+      }
+    `}
+  >
+    <div className="text-xs font-medium">{day.label}</div>
+    <div className="text-base font-semibold">{day.day}</div>
+  </button>
+))}
         </div>
       </div>
 

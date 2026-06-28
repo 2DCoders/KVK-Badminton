@@ -50,3 +50,16 @@ export const updateSlot = async (slotId: string, slotData: any) => {
         throw error;
     }
 }
+
+export const getSlotsAvailability = async (courtId: string, date: string) => {
+    try {
+        const response = await axios.get(`${SLOTS_API_URL}availability-by-court?courtId=${courtId}&date=${date}`, {
+            headers: {
+                Authorization: `Bearer ${getToken()}`,
+            },
+        });
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}
