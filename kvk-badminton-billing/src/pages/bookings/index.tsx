@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Calendar, ChevronRight } from "lucide-react";
+import { Calendar, ChevronRight, X } from "lucide-react";
 import { getNextWorkingDays } from "@/services/holidays-api";
 import { getSlotsAvailability } from "@/services/slots-api";
 import { getCourts } from "@/services/courts-api";
 import { bookingSlots } from "@/services/booking-api";
+import { createPortal } from "react-dom";
 
 interface Slot {
   id: string;
@@ -33,9 +34,11 @@ export default function Bookings() {
     }[]
   >([]);
   const [courts, setCourts] = useState<any[]>([]);
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+
   const [customerName, setCustomerName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [paymentTypes, setPaymentTypes] = useState(0);
+  const [paymentTypes, setPaymentTypes] = useState(1);
 
   const [courtSlots, setCourtSlots] = useState<
     Record<string, SlotAvailability[]>
@@ -127,28 +130,32 @@ export default function Bookings() {
 
   const handleBookingMultipleSlots = async () => {
     try {
-
       const bookings = Object.entries(selectedSlots).flatMap(
         ([courtId, slotIds]) =>
           slotIds.map((slotId) => ({
             courtId,
             courtSlotId: slotId,
-            bookingDate: days[selectedDate].date,
+            bookingDate: days[selectedDate].date.slice(0, 10),
           }))
       );
 
       const payload = {
         bookings,
         totalAmount,
-        customerName,
-        phoneNumber,
         paymentTypes,
       };
 
       await bookingSlots(payload);
 
+      setIsBookingModalOpen(false);
+      setSelectedSlots({});
+      setCustomerName("");
+      setPhoneNumber("");
+      setPaymentTypes(1);
+
+      handleGetSlotsAvailability(days[selectedDate].date);
     } catch (error) {
-      console.error("Error booking slots:", error);
+      console.error(error);
     }
   };
 
@@ -203,6 +210,23 @@ export default function Bookings() {
 
   const totalAmount = totalSlots * SLOT_PRICE;
   const hasSelection = totalSlots > 0;
+
+  const bookingSummary = courts
+    .map((court) => {
+      const selected = selectedSlots[court.id] || [];
+
+      if (selected.length === 0) return null;
+
+      const slots = (courtSlots[court.id] || []).filter((s) =>
+        selected.includes(s.id)
+      );
+
+      return {
+        courtName: court.name,
+        slots,
+      };
+    })
+    .filter(Boolean);
 
   const renderCourt = (court: any) => {
     const formattedSlots: Slot[] = (courtSlots[court.id] || []).map((slot) => {
@@ -290,6 +314,199 @@ export default function Bookings() {
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
       {/* Header */}
+
+      {
+        isBookingModalOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white">
+              <div className="flex items-center justify-between border-b p-5">
+                <div>
+                  <h2 className="text-2xl font-semibold">
+                    Confirm Booking
+                  </h2>
+
+                  <p className="text-sm text-gray-500">
+                    Complete customer details before confirming.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setIsBookingModalOpen(false)}
+                  className="p-2 rounded-full hover:bg-gray-100"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-6 py-5">
+
+                <div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+
+                    <div>
+
+                      <label className="text-sm font-medium">
+                        Customer Name
+                      </label>
+
+                      <input
+                        value={customerName}
+                        onChange={(e) => setCustomerName(e.target.value)}
+                        className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:border-amber-500"
+                      />
+
+                    </div>
+
+                    <div>
+
+                      <label className="text-sm font-medium">
+                        Phone Number
+                      </label>
+
+                      <input
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value)}
+                        className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:border-amber-500"
+                      />
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+                <div className="mt-6 mb-6 border-t pt-6">
+
+                  <h3 className="font-semibold mb-3">
+                    Payment Method
+                  </h3>
+
+                  <div className="flex gap-4">
+
+                    <label className="flex items-center gap-3 cursor-pointer">
+
+                      <input
+                        type="radio"
+                        checked={paymentTypes === 1}
+                        onChange={() => setPaymentTypes(1)}
+                      />
+
+                      Cash
+
+                    </label>
+
+                    <label className="flex items-center gap-3 cursor-pointer">
+
+                      <input
+                        type="radio"
+                        checked={paymentTypes === 2}
+                        onChange={() => setPaymentTypes(2)}
+                      />
+
+                      Card
+
+                    </label>
+
+                  </div>
+
+                </div>
+
+                <div>
+
+                  <h3 className="font-semibold mb-3">
+                    Booking Summary
+                  </h3>
+
+                  <div className="rounded-xl border">
+
+                    {bookingSummary.map((court: any) => (
+                      <div
+                        key={court.courtName}
+                        className="border-b last:border-b-0 p-4"
+                      >
+
+                        <div className="font-medium mb-2">
+                          {court.courtName}
+                        </div>
+
+                        <div className="space-y-1">
+
+                          {court.slots.map((slot: any) => (
+                            <div
+                              key={slot.id}
+                              className="flex justify-between text-sm text-gray-600"
+                            >
+
+                              <span>
+                                {slot.startTime} - {slot.endTime}
+                              </span>
+
+                              <span>
+                                Rs. {slot.price.toLocaleString()}
+                              </span>
+
+                            </div>
+                          ))}
+
+                        </div>
+
+                      </div>
+                    ))}
+
+                    <div className="p-4 border-t space-y-2">
+
+                      <div className="flex justify-between">
+
+                        <span>Total Slots</span>
+
+                        <span>{totalSlots}</span>
+
+                      </div>
+
+                      <div className="flex justify-between">
+
+                        <span>Total Amount</span>
+
+                        <span className="font-bold text-lg text-amber-600">
+
+                          Rs. {totalAmount.toLocaleString()}
+
+                        </span>
+
+                      </div>
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+                <div className="flex justify-end gap-3 bg-white p-5">
+                  <button
+                    onClick={() => setIsBookingModalOpen(false)}
+                    className="rounded-lg border px-5 py-2"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    // onClick={handleBookingMultipleSlots}
+                    className="rounded-lg bg-amber-600 px-6 py-2 text-white"
+                  >
+                    Confirm Booking
+                  </button>
+                </div>
+
+              </div>
+
+            </div>
+
+          </div>,
+          document.body
+        )
+      }
 
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-gray-900">Court Booking</h1>
@@ -410,6 +627,10 @@ export default function Bookings() {
                 </div>
 
                 <button
+                  onClick={() => {
+                    setIsBookingModalOpen(true)
+                    handleBookingMultipleSlots()
+                  }}
                   className="
                     w-full
                     mt-6
