@@ -384,7 +384,7 @@ export default function Bookings() {
                 ${selected
                     ? "border-amber-500 bg-amber-50 text-amber-700"
                     : slot.status === "booked"
-                      ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                      ? "bg-green-100 border-green-200 text-black-400 cursor-not-allowed"
                       : slot.status === "past"
                         ? "bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed"
                         : "bg-white border-gray-200 hover:border-gray-400"
@@ -597,7 +597,7 @@ export default function Bookings() {
                 <div className="flex justify-end gap-3 bg-white p-5">
                   <button
                     onClick={() => setIsBookingModalOpen(false)}
-                    className="rounded-lg border px-5 py-2"
+                    className="rounded-lg border px-5 py-2 cursor-pointer text-gray-700 font-medium hover:bg-gray-100"
                   >
                     Cancel
                   </button>
@@ -605,7 +605,7 @@ export default function Bookings() {
                   <button
                     onClick={handleLoopConfirmBooking}
                     disabled={loading || !customerName || !phoneNumber}
-                    className="rounded-lg bg-amber-600 px-6 py-2 text-white font-medium disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-lg bg-amber-600 px-6 cursor-pointer py-2 text-white font-medium disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Confirm Booking
                   </button>
