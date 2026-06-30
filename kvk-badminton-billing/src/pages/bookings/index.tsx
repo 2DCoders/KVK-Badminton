@@ -3,8 +3,9 @@ import { Calendar, ChevronRight, X } from "lucide-react";
 import { getNextWorkingDays } from "@/services/holidays-api";
 import { getSlotsAvailability } from "@/services/slots-api";
 import { getCourts } from "@/services/courts-api";
-import { bookingSlots } from "@/services/booking-api";
+import { bookingSlots, confirmBooking } from "@/services/booking-api";
 import { createPortal } from "react-dom";
+import { Alert } from "@/components/ui/alert";
 
 interface Slot {
   id: string;
@@ -39,7 +40,14 @@ export default function Bookings() {
   const [customerName, setCustomerName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [paymentTypes, setPaymentTypes] = useState(1);
-
+  const [holdSlots, setHoldSlots] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [pageAlert, setPageAlert] = useState<{
+    visible: boolean;
+    variant?: "success" | "error" | "warning" | "info";
+    title?: string;
+    description?: string;
+  }>({ visible: false });
   const [courtSlots, setCourtSlots] = useState<
     Record<string, SlotAvailability[]>
   >({});
@@ -129,6 +137,7 @@ export default function Bookings() {
   }, [days, selectedDate, courts]);
 
   const handleBookingMultipleSlots = async () => {
+    setLoading(true);
     try {
       const bookings = Object.entries(selectedSlots).flatMap(
         ([courtId, slotIds]) =>
@@ -145,17 +154,19 @@ export default function Bookings() {
         paymentTypes,
       };
 
-      await bookingSlots(payload);
+      const res = await bookingSlots(payload);
 
-      setIsBookingModalOpen(false);
-      setSelectedSlots({});
-      setCustomerName("");
-      setPhoneNumber("");
-      setPaymentTypes(1);
-
+      setHoldSlots(res?.additionalData?.response || []);
       handleGetSlotsAvailability(days[selectedDate].date);
     } catch (error) {
-      console.error(error);
+      setPageAlert({
+        visible: true,
+        variant: "error",
+        title: "Booking Error",
+        description: "An error occurred while booking slots. Please try again.",
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -207,6 +218,85 @@ export default function Bookings() {
     (sum, slots) => sum + slots.length,
     0
   );
+
+  const handleLoopConfirmBooking = async () => {
+
+    if(!customerName || !phoneNumber) {
+      setPageAlert({
+        visible: true,
+        variant: "error",
+        title: "Missing Information",
+        description: "Please provide both customer name and phone number.",
+      });
+      return;
+    }
+
+    if (holdSlots.length === 0) {
+      setPageAlert({
+        visible: true,
+        variant: "error",
+        title: "No Slots Held",
+        description: "Please hold slots before confirming the booking.",
+      });
+      return;
+    }
+
+    if (phoneNumber.length < 10 || phoneNumber.length > 10 || !/^\d+$/.test(phoneNumber)) {
+      setPageAlert({
+        visible: true,
+        variant: "error",
+        title: "Invalid Phone Number",
+        description: "Please enter a valid 10-digit phone number.",
+      });
+      return;
+    }
+
+    setLoading(true);
+
+    try{
+      for (const hold of holdSlots) {
+      await handleConfirmBooking(hold.holdId);
+    }
+    setPageAlert({
+      visible: true,
+      variant: "success",
+      title: "Booking Confirmed",
+      description: "Your booking has been successfully confirmed.",
+    });
+    
+    setLoading(false);
+    setSelectedSlots({});
+    setCustomerName("");
+    setPhoneNumber("");
+    setPaymentTypes(1);
+    setIsBookingModalOpen(false);
+    } catch (error) {
+      setPageAlert({
+        visible: true,
+        variant: "error",
+        title: "Confirmation Error",
+        description: "An error occurred while confirming the booking. Please try again.",
+      });
+      setLoading(false);
+    }
+  }
+
+  const handleConfirmBooking = async (holdId: string) => {
+    try {
+      await confirmBooking(holdId, {
+        customerName: customerName,
+        phoneNumber: phoneNumber,
+      });
+    } catch (error) {
+      setPageAlert({
+        visible: true,
+        variant: "error",
+        title: "Confirmation Error",
+        description: "An error occurred while confirming the booking. Please try again.",
+      });
+      setLoading(false);
+    }
+  }
 
   const totalAmount = totalSlots * SLOT_PRICE;
   const hasSelection = totalSlots > 0;
@@ -314,6 +404,27 @@ export default function Bookings() {
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
       {/* Header */}
+
+      {loading && createPortal(
+        <div className="fixed inset-0 z-[9999999999] flex items-center justify-center bg-black/60 backdrop-blur-md">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-14 w-14 animate-spin rounded-full border-4 border-white/30 border-t-white"></div>
+            <p className="text-sm text-white font-medium">Loading</p>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {pageAlert.visible && (
+        <div>
+          <Alert
+            variant={pageAlert.variant as any}
+            title={pageAlert.title}
+            description={pageAlert.description}
+            onClose={() => setPageAlert((s) => ({ ...s, visible: false }))}
+          />
+        </div>
+      )}
 
       {
         isBookingModalOpen &&
@@ -455,7 +566,7 @@ export default function Bookings() {
                       </div>
                     ))}
 
-                    <div className="p-4 border-t space-y-2">
+                    <div className="p-4 space-y-2">
 
                       <div className="flex justify-between">
 
@@ -492,8 +603,9 @@ export default function Bookings() {
                   </button>
 
                   <button
-                    // onClick={handleBookingMultipleSlots}
-                    className="rounded-lg bg-amber-600 px-6 py-2 text-white"
+                    onClick={handleLoopConfirmBooking}
+                    disabled={loading || !customerName || !phoneNumber}
+                    className="rounded-lg bg-amber-600 px-6 py-2 text-white font-medium disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Confirm Booking
                   </button>
