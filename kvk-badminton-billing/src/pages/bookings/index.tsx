@@ -59,7 +59,7 @@ export default function Bookings() {
 
   useEffect(() => {
     if (!dayendData) {
-      // navigate("/dayend");
+      navigate("/dayend");
     }
   }, [dayendData]);
   
