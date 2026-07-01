@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Eye, Save, X } from "lucide-react";
+import { Save, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import { getCourts, updateCourt } from "@/services/courts-api";
 import { Alert } from "@/components/ui/alert";
 import { createSlot, getSlotById, updateSlot } from "@/services/slots-api";
+import { useNavigate } from "react-router-dom";
 
 export default function CourtSettings() {
   const [showSlotsModal, setShowSlotsModal] = useState(false);
@@ -21,6 +22,16 @@ export default function CourtSettings() {
     description?: string;
   }>({ visible: false });
   const [loading, setLoading] = useState(false);
+  
+  const navigate = useNavigate();
+
+  const dayendData = localStorage.getItem("dayEndData") ? JSON.parse(localStorage.getItem("dayEndData") as string) : null;
+
+  useEffect(() => {
+    if (!dayendData) {
+      navigate("/dayend");
+    }
+  }, [dayendData]);
 
   const handleFetchCourts = async () => {
     setLoading(true);

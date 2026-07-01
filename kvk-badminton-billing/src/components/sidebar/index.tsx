@@ -9,6 +9,8 @@ import {
   Ticket,
   Calendar,
 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { getDayEndData } from '@/services/dayend-api';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -34,7 +36,37 @@ export default function Sidebar({ isOpen, isMobile, onClose }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const collapsed = !isOpen && !isMobile;
-  
+
+  const [isDidDayEnd, setIsDidDayEnd] = useState(false);
+
+    const handleGetDayEndData = async () => {
+    const today = new Date().toISOString().split("T")[0];
+
+    try {
+      const res = await getDayEndData(today);
+      if (res && res.length > 0) {
+        setIsDidDayEnd(true);
+        localStorage.setItem("dayEndData", JSON.stringify(res[0]));
+      } else {
+        setIsDidDayEnd(false);
+        localStorage.removeItem("dayEndData");
+      }
+    } catch (error) {
+      setIsDidDayEnd(false);
+      localStorage.removeItem("dayEndData");
+    }
+  };
+
+  useEffect(() => {
+    handleGetDayEndData();
+  }, []);
+
+  const canAccessMenu = (itemId: string) => {
+    if (isDidDayEnd) return true;
+    
+    return itemId === "dayend";
+  };
+
   const cashier = localStorage.getItem('cashier') ? JSON.parse(localStorage.getItem('cashier') as string) : null;
 
   const navItems: NavItem[] = [
@@ -116,8 +148,23 @@ export default function Sidebar({ isOpen, isMobile, onClose }: SidebarProps) {
               return (
                 <div key={item.id}>
                   <button
-                    onClick={() => handleNavigation(item.path)}
-                    className={`${btnBase} cursor-pointer ${active && !collapsed ? 'bg-amber-50 text-amber-700 shadow-sm' : 'text-gray-700 hover:bg-gray-50'}`}
+                    onClick={() => {
+                      if (!canAccessMenu(item.id)) return;
+                      handleNavigation(item.path);
+                    }}
+                    disabled={!canAccessMenu(item.id)}
+                    className={`${btnBase}
+                      ${
+                        active && !collapsed
+                          ? "bg-blue-50 text-blue-700 shadow-sm"
+                          : "text-gray-700 hover:bg-gray-50"
+                      }
+                      ${
+                        !canAccessMenu(item.id)
+                          ? "opacity-50 cursor-not-allowed"
+                          : "cursor-pointer"
+                      }
+                    `}
                   >
                     <div className={`flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
                       <span className={iconWrapper}>
@@ -171,8 +218,8 @@ export default function Sidebar({ isOpen, isMobile, onClose }: SidebarProps) {
 
             {collapsed && (
               <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-semibold">
-                  {cashier?.firstName?.charAt(0)}{cashier?.lastName?.charAt(0)}
-                </div>
+                {cashier?.firstName?.charAt(0)}{cashier?.lastName?.charAt(0)}
+              </div>
             )}
           </div>
         </div>

@@ -25,9 +25,9 @@ export const bookingSlots = async (bookingData: any) => {
     }
 }
 
-export const confirmBooking = async (holdId: string, customerData: any) => {
+export const confirmBooking = async (customerData: any) => {
     try {
-        const response = await axios.post(`${BOOKING_API_URL}confirm/${holdId}`, customerData, {
+        const response = await axios.post(`${BOOKING_API_URL}confirm-multi`, customerData, {
             headers: {
                 Authorization: `Bearer ${getToken()}`,
             },

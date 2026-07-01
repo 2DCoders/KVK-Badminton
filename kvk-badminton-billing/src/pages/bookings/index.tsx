@@ -6,6 +6,7 @@ import { getCourts } from "@/services/courts-api";
 import { bookingSlots, confirmBooking } from "@/services/booking-api";
 import { createPortal } from "react-dom";
 import { Alert } from "@/components/ui/alert";
+import { useNavigate } from "react-router-dom";
 
 interface Slot {
   id: string;
@@ -51,7 +52,17 @@ export default function Bookings() {
   const [courtSlots, setCourtSlots] = useState<
     Record<string, SlotAvailability[]>
   >({});
+  
+  const navigate = useNavigate();
 
+  const dayendData = localStorage.getItem("dayEndData") ? JSON.parse(localStorage.getItem("dayEndData") as string) : null;
+
+  useEffect(() => {
+    if (!dayendData) {
+      navigate("/dayend");
+    }
+  }, [dayendData]);
+  
   const handleGetCourts = async () => {
     try {
       const response = await getCourts();
@@ -219,9 +230,8 @@ export default function Bookings() {
     0
   );
 
-  const handleLoopConfirmBooking = async () => {
-
-    if(!customerName || !phoneNumber) {
+  const handleConfirmBooking = async () => {
+    if (!customerName || !phoneNumber) {
       setPageAlert({
         visible: true,
         variant: "error",
@@ -241,7 +251,10 @@ export default function Bookings() {
       return;
     }
 
-    if (phoneNumber.length < 10 || phoneNumber.length > 10 || !/^\d+$/.test(phoneNumber)) {
+    if (
+      phoneNumber.length !== 10 ||
+      !/^\d+$/.test(phoneNumber)
+    ) {
       setPageAlert({
         visible: true,
         variant: "error",
@@ -253,40 +266,30 @@ export default function Bookings() {
 
     setLoading(true);
 
-    try{
-      for (const hold of holdSlots) {
-      await handleConfirmBooking(hold.holdId);
-    }
-    setPageAlert({
-      visible: true,
-      variant: "success",
-      title: "Booking Confirmed",
-      description: "Your booking has been successfully confirmed.",
-    });
-    
-    setLoading(false);
-    setSelectedSlots({});
-    setCustomerName("");
-    setPhoneNumber("");
-    setPaymentTypes(1);
-    setIsBookingModalOpen(false);
-    } catch (error) {
-      setPageAlert({
-        visible: true,
-        variant: "error",
-        title: "Confirmation Error",
-        description: "An error occurred while confirming the booking. Please try again.",
-      });
-      setLoading(false);
-    }
-  }
-
-  const handleConfirmBooking = async (holdId: string) => {
     try {
-      await confirmBooking(holdId, {
-        customerName: customerName,
-        phoneNumber: phoneNumber,
+      await confirmBooking({
+        holdIds: holdSlots.map((slot) => slot.holdId),
+        customerDetails: {
+          customerName,
+          phoneNumber,
+        },
       });
+
+      setPageAlert({
+        visible: true,
+        variant: "success",
+        title: "Booking Confirmed",
+        description: "Your booking has been successfully confirmed.",
+      });
+
+      setSelectedSlots({});
+      setHoldSlots([]);
+      setCustomerName("");
+      setPhoneNumber("");
+      setPaymentTypes(1);
+      setIsBookingModalOpen(false);
+
+      handleGetSlotsAvailability(days[selectedDate].date);
     } catch (error) {
       setPageAlert({
         visible: true,
@@ -294,9 +297,10 @@ export default function Bookings() {
         title: "Confirmation Error",
         description: "An error occurred while confirming the booking. Please try again.",
       });
+    } finally {
       setLoading(false);
     }
-  }
+  };
 
   const totalAmount = totalSlots * SLOT_PRICE;
   const hasSelection = totalSlots > 0;
@@ -603,7 +607,7 @@ export default function Bookings() {
                   </button>
 
                   <button
-                    onClick={handleLoopConfirmBooking}
+                    onClick={handleConfirmBooking}
                     disabled={loading || !customerName || !phoneNumber}
                     className="rounded-lg bg-amber-600 px-6 cursor-pointer py-2 text-white font-medium disabled:cursor-not-allowed disabled:opacity-50"
                   >
