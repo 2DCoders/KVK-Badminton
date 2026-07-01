@@ -14,7 +14,7 @@ const getToken = () => {
 
 export const getFinancialSummary = async (startDate: string, endDate: string) => {
     const token = getToken();
-    const response = await axios.get(`${FINANCIAL_API_URL}gym-analytics?StartDate=${startDate}&EndDate=${endDate}`, {
+    const response = await axios.get(`${FINANCIAL_API_URL}badminton-analytics?StartDate=${startDate}&EndDate=${endDate}`, {
         headers: {
             Authorization: `Bearer ${token}`
         },

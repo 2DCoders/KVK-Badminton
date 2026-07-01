@@ -29,7 +29,7 @@ export default function CourtSettings() {
 
   useEffect(() => {
     if (!dayendData) {
-      navigate("/dayend");
+      // navigate("/dayend");
     }
   }, [dayendData]);
 

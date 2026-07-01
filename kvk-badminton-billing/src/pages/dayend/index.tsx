@@ -42,9 +42,9 @@ export default function Dayend() {
   const [loading, setLoading] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  const loadSummary = async (date: string) => {
+  const loadSummary = async (date: string, nextDate: string) => {
     try {
-      const response = await getFinancialSummary(date, date);
+      const response = await getFinancialSummary(date, nextDate);
       const summary =
         response?.additionalData?.response ??
         response?.response ??
@@ -91,10 +91,22 @@ export default function Dayend() {
       if (res && res.length > 0) {
         const data = res[0];
         setDayEndData(data);
-        loadSummary(data.currentDate.split("T")[0]);
+
+        // Current date
+        const currentDate = new Date(data.currentDate);
+
+        // Next date
+        const nextDate = new Date(currentDate);
+        nextDate.setDate(nextDate.getDate() + 1);
+
+        // Format dates as YYYY-MM-DD
+        const currentDateString = currentDate.toISOString().split("T")[0];
+        const nextDateString = nextDate.toISOString().split("T")[0];
+
+        loadSummary(currentDateString, nextDateString);
+
         setPrevDayAmount(Number(data.cashFromPrevDay ?? 0));
 
-        const currentDate = new Date(data.currentDate);
         const today = new Date();
 
         currentDate.setHours(0, 0, 0, 0);
@@ -164,13 +176,13 @@ export default function Dayend() {
       )}
       {loading && (
         createPortal(
-        <div className="fixed inset-0 z-[9999999999] flex items-center justify-center bg-black/60 backdrop-blur-md">
-          <div className="flex flex-col items-center gap-3">
-            <div className="h-14 w-14 animate-spin rounded-full border-4 border-white/30 border-t-white"></div>
-            <p className="text-sm text-white font-medium">Loading</p>
-          </div>
-        </div>,
-        document.body)
+          <div className="fixed inset-0 z-[9999999999] flex items-center justify-center bg-black/60 backdrop-blur-md">
+            <div className="flex flex-col items-center gap-3">
+              <div className="h-14 w-14 animate-spin rounded-full border-4 border-white/30 border-t-white"></div>
+              <p className="text-sm text-white font-medium">Loading</p>
+            </div>
+          </div>,
+          document.body)
       )}
       {showSuccessModal &&
         createPortal(
@@ -245,7 +257,7 @@ export default function Dayend() {
                 Review and close the business day
               </p>
 
-              
+
             </div>
 
             <div className="flex items-center gap-3">
@@ -421,11 +433,10 @@ export default function Dayend() {
                     !isHoldAmountValid ||
                     (!isDiscrepancyZero && !cashRemark.trim())
                   }
-                  className={`w-full flex items-center justify-center gap-2 px-4 py-3 text-white rounded-lg font-medium transition-all duration-300 cursor-pointer ${
-                    !actualCashCount.trim() || !isHoldAmountValid
+                  className={`w-full flex items-center justify-center gap-2 px-4 py-3 text-white rounded-lg font-medium transition-all duration-300 cursor-pointer ${!actualCashCount.trim() || !isHoldAmountValid
                       ? "bg-gray-400 cursor-not-allowed"
                       : "bg-emerald-600 hover:bg-emerald-700 hover:-translate-y-0.5 hover:shadow-lg"
-                  }`}
+                    }`}
                 >
                   <Lock size={16} />
                   Close Day
@@ -501,11 +512,10 @@ export default function Dayend() {
                 <button
                   onClick={handlePerformDayEnd}
                   disabled={!canCloseDay || isPageLocked}
-                  className={`px-4 py-2 rounded-lg text-white font-medium transition-all duration-300 cursor-pointer ${
-                    !canCloseDay || isPageLocked
+                  className={`px-4 py-2 rounded-lg text-white font-medium transition-all duration-300 cursor-pointer ${!canCloseDay || isPageLocked
                       ? "bg-gray-400 cursor-not-allowed"
                       : "bg-emerald-600 hover:bg-emerald-700 hover:-translate-y-0.5 hover:shadow-lg"
-                  }`}
+                    }`}
                 >
                   Close Day
                 </button>
