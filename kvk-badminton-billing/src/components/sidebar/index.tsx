@@ -1,12 +1,8 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  Users,
-  Dumbbell,
-  CreditCard,
   CheckSquare,
   Settings,
   ChevronDown,
-  Ticket,
   Calendar,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -37,24 +33,24 @@ export default function Sidebar({ isOpen, isMobile, onClose }: SidebarProps) {
   const navigate = useNavigate();
   const collapsed = !isOpen && !isMobile;
 
-  const [isDidDayEnd, setIsDidDayEnd] = useState(false);
+  const [isDidDayEnd, setIsDidDayEnd] = useState(true);
 
     const handleGetDayEndData = async () => {
     const today = new Date().toISOString().split("T")[0];
 
-    try {
-      const res = await getDayEndData(today);
-      if (res && res.length > 0) {
-        setIsDidDayEnd(true);
-        localStorage.setItem("dayEndData", JSON.stringify(res[0]));
-      } else {
-        setIsDidDayEnd(false);
-        localStorage.removeItem("dayEndData");
-      }
-    } catch (error) {
-      setIsDidDayEnd(false);
-      localStorage.removeItem("dayEndData");
-    }
+    // try {
+    //   const res = await getDayEndData(today);
+    //   if (res && res.length > 0) {
+    //     setIsDidDayEnd(true);
+    //     localStorage.setItem("dayEndData", JSON.stringify(res[0]));
+    //   } else {
+    //     setIsDidDayEnd(false);
+    //     localStorage.removeItem("dayEndData");
+    //   }
+    // } catch (error) {
+    //   setIsDidDayEnd(false);
+    //   localStorage.removeItem("dayEndData");
+    // }
   };
 
   useEffect(() => {
