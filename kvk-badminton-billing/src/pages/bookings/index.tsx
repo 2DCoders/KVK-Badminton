@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Calendar, ChevronRight, X } from "lucide-react";
 import { getNextWorkingDays } from "@/services/holidays-api";
 import { getSlotsAvailability } from "@/services/slots-api";

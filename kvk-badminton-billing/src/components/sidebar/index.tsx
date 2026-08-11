@@ -81,6 +81,13 @@ export default function Sidebar({ isOpen, isMobile, onClose }: SidebarProps) {
       submenu: null,
     },
     {
+      id: 'special-bookings',
+      label: 'Special Bookings',
+      icon: Calendar,
+      path: '/special-bookings',
+      submenu: null,
+    },
+    {
       id: 'dayend',
       label: 'Day end',
       icon: CheckSquare,
