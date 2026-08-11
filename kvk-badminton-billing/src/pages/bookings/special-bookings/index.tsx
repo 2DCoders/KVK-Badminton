@@ -4,7 +4,6 @@ import {
   Check,
   ChevronRight,
   Clock3,
-  Copy,
   CreditCard,
   Info,
   Tag,
