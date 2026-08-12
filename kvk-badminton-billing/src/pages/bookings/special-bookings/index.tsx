@@ -2,13 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
   Check,
-  ChevronRight,
   Clock3,
-  CreditCard,
   Info,
-  Tag,
-  User,
-  WalletCards,
   X,
 } from "lucide-react";
 
@@ -63,12 +58,6 @@ const WEEKDAYS = [
   "Sunday",
 ];
 
-/*
- * Price is still fixed because the slot configuration API response
- * provided does not contain a price.
- *
- * If your backend later returns a price, this can also be made dynamic.
- */
 const SLOT_PRICE = 1500;
 
 const DUMMY_BOOKINGS: RecurringBooking[] = [
@@ -141,12 +130,7 @@ const timeToMinutes = (time: string): number => {
 };
 
 /**
- * Converts minutes from midnight into a readable 12-hour time.
- *
- * Example:
- * 480 -> "8:00 AM"
- * 720 -> "12:00 PM"
- * 1140 -> "7:00 PM"
+ * Converts minutes from midnight into readable 12-hour time.
  */
 const formatTime = (totalMinutes: number): string => {
   const hours24 = Math.floor(totalMinutes / 60);
@@ -159,21 +143,7 @@ const formatTime = (totalMinutes: number): string => {
 };
 
 /**
- * Generates actual booking slots from the backend configuration.
- *
- * Example backend configuration:
- *
- * startTime: "08:00:00"
- * endTime: "20:00:00"
- * slotDurationMinutes: 60
- * slotGapMinutes: 0
- *
- * Produces:
- *
- * 8:00 AM - 9:00 AM
- * 9:00 AM - 10:00 AM
- * ...
- * 7:00 PM - 8:00 PM
+ * Generates booking slots from backend configuration.
  */
 const generateTimeSlots = (
   startTime: string,
@@ -198,11 +168,14 @@ const generateTimeSlots = (
 
   while (currentMinutes + slotDurationMinutes <= endMinutes) {
     const slotStart = formatTime(currentMinutes);
-    const slotEnd = formatTime(currentMinutes + slotDurationMinutes);
+    const slotEnd = formatTime(
+      currentMinutes + slotDurationMinutes,
+    );
 
     slots.push(`${slotStart} - ${slotEnd}`);
 
-    currentMinutes += slotDurationMinutes + Math.max(0, slotGapMinutes);
+    currentMinutes +=
+      slotDurationMinutes + Math.max(0, slotGapMinutes);
   }
 
   return slots;
@@ -213,16 +186,16 @@ export default function SpecialBookingsPage() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [weekday, setWeekday] = useState("Monday");
 
-  /**
-   * No hardcoded default slot.
-   *
-   * It will be populated after the slot configuration
-   * is received from the API.
-   */
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
 
   const [startDate, setStartDate] = useState("2026-09-07");
-  const [months, setMonths] = useState("6");
+
+  /**
+   * Number of recurring occurrences.
+   *
+   * Only positive whole numbers are allowed.
+   */
+  const [slotCount, setSlotCount] = useState("1");
 
   const [paymentPlan, setPaymentPlan] =
     useState<PaymentPlan>("full");
@@ -233,7 +206,8 @@ export default function SpecialBookingsPage() {
   const [couponCode, setCouponCode] = useState("");
   const [couponApplied, setCouponApplied] = useState(false);
 
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] =
+    useState(false);
 
   const [bookings, setBookings] =
     useState<RecurringBooking[]>(DUMMY_BOOKINGS);
@@ -242,25 +216,29 @@ export default function SpecialBookingsPage() {
 
   const [courts, setCourts] = useState<Court[]>([]);
 
-  /**
-   * Backend slot configuration.
-   */
   const [slotConfiguration, setSlotConfiguration] =
     useState<CourtSlotConfiguration | null>(null);
 
-  /**
-   * Generated slots used by the UI.
-   *
-   * These are generated dynamically from slotConfiguration.
-   */
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
 
-  const [isLoadingCourts, setIsLoadingCourts] = useState(false);
-  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  const [isLoadingCourts, setIsLoadingCourts] =
+    useState(false);
 
+  const [isLoadingSlots, setIsLoadingSlots] =
+    useState(false);
+
+  /**
+   * Convert entered slot count into a safe positive integer.
+   */
   const occurrenceCount = useMemo(() => {
-    return Number(months) * 4;
-  }, [months]);
+    const value = Number(slotCount);
+
+    if (!Number.isInteger(value) || value < 1) {
+      return 0;
+    }
+
+    return value;
+  }, [slotCount]);
 
   const totalSlots =
     selectedSlots.length * occurrenceCount;
@@ -274,6 +252,38 @@ export default function SpecialBookingsPage() {
   const totalAmount = subtotal - discount;
 
   const installmentAmount = Math.ceil(totalAmount / 2);
+
+  /**
+   * Handles number input.
+   *
+   * Only positive whole numbers are accepted.
+   * Negative numbers, decimals and other characters
+   * are rejected.
+   */
+  const handleSlotCountChange = (
+    value: string,
+  ) => {
+    if (value === "") {
+      setSlotCount("");
+      return;
+    }
+
+    if (!/^\d+$/.test(value)) {
+      return;
+    }
+
+    const numericValue = Number(value);
+
+    if (!Number.isSafeInteger(numericValue)) {
+      return;
+    }
+
+    if (numericValue < 1) {
+      return;
+    }
+
+    setSlotCount(String(numericValue));
+  };
 
   /**
    * Toggle a generated slot.
@@ -313,7 +323,8 @@ export default function SpecialBookingsPage() {
       ) {
         return [...current, slot].sort(
           (a, b) =>
-            timeSlots.indexOf(a) - timeSlots.indexOf(b),
+            timeSlots.indexOf(a) -
+            timeSlots.indexOf(b),
         );
       }
 
@@ -323,9 +334,6 @@ export default function SpecialBookingsPage() {
 
   /**
    * Fetch all courts.
-   *
-   * The first court is currently used because the existing
-   * page design selects the first available court.
    */
   const handleGetCourts = async () => {
     try {
@@ -344,7 +352,9 @@ export default function SpecialBookingsPage() {
         setTimeSlots([]);
         setSelectedSlots([]);
 
-        setAlert("No badminton courts are available.");
+        setAlert(
+          "No badminton courts are available.",
+        );
       }
     } catch (error) {
       console.error("Error fetching courts:", error);
@@ -363,15 +373,15 @@ export default function SpecialBookingsPage() {
   };
 
   /**
-   * Fetch the slot configuration for a court and generate
-   * the actual slots dynamically.
+   * Fetch slot configuration for a court.
    */
-  const handleGetSlotsById = async (courtId: string) => {
+  const handleGetSlotsById = async (
+    courtId: string,
+  ) => {
     try {
       setIsLoadingSlots(true);
 
-      const response =
-        await getSlotById(courtId);
+      const response = await getSlotById(courtId);
 
       console.log(
         "Slot configuration for court",
@@ -397,9 +407,6 @@ export default function SpecialBookingsPage() {
 
       setSlotConfiguration(configuration);
 
-      /**
-       * Check whether the configuration is active.
-       */
       if (configuration.isActive !== 1) {
         setTimeSlots([]);
         setSelectedSlots([]);
@@ -411,9 +418,6 @@ export default function SpecialBookingsPage() {
         return;
       }
 
-      /**
-       * Validate the configuration before generating slots.
-       */
       if (
         !configuration.startTime ||
         !configuration.endTime ||
@@ -429,9 +433,6 @@ export default function SpecialBookingsPage() {
         return;
       }
 
-      /**
-       * Generate the slots.
-       */
       const generatedSlots = generateTimeSlots(
         configuration.startTime,
         configuration.endTime,
@@ -446,9 +447,6 @@ export default function SpecialBookingsPage() {
 
       setTimeSlots(generatedSlots);
 
-      /**
-       * Automatically select the first generated slot.
-       */
       setSelectedSlots(
         generatedSlots.length > 0
           ? [generatedSlots[0]]
@@ -511,6 +509,13 @@ export default function SpecialBookingsPage() {
       return;
     }
 
+    if (occurrenceCount < 1) {
+      setAlert(
+        "Please enter a valid number of slots.",
+      );
+      return;
+    }
+
     if (timeSlots.length === 0) {
       setAlert(
         "No valid time slots are available.",
@@ -530,27 +535,39 @@ export default function SpecialBookingsPage() {
 
   const handleConfirmBooking = () => {
     const newBooking: RecurringBooking = {
-      id: `SB-${String(bookings.length + 1).padStart(
-        4,
-        "0",
-      )}`,
+      id: `SB-${String(
+        bookings.length + 1,
+      ).padStart(4, "0")}`,
+
       customerName,
+
       phone: phoneNumber,
+
       weekday,
+
       time: selectedSlots.join(", "),
+
       startDate,
-      endDate: `${months} months`,
+
+      endDate: `${occurrenceCount} occurrences`,
+
       occurrences: occurrenceCount,
+
       paymentPlan,
+
       paymentMethod,
+
       totalAmount,
+
       paidAmount:
         paymentPlan === "full"
           ? totalAmount
           : installmentAmount,
+
       couponCode: couponApplied
         ? couponCode.toUpperCase()
         : undefined,
+
       status: "Confirmed",
     };
 
@@ -564,15 +581,13 @@ export default function SpecialBookingsPage() {
     setCustomerName("");
     setPhoneNumber("");
 
-    /**
-     * Reset to the first dynamically generated slot,
-     * instead of a hardcoded slot.
-     */
     setSelectedSlots(
       timeSlots.length > 0
         ? [timeSlots[0]]
         : [],
     );
+
+    setSlotCount("1");
 
     setCouponCode("");
     setCouponApplied(false);
@@ -601,28 +616,6 @@ export default function SpecialBookingsPage() {
         </p>
       </div>
 
-      {/* Information */}
-      {/* <div className="mb-6 flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
-        <Info
-          size={19}
-          className="mt-0.5 shrink-0 text-amber-600"
-        />
-
-        <div>
-          <p className="text-sm font-medium text-amber-800">
-            Future booking registration
-          </p>
-
-          <p className="mt-1 text-xs leading-5 text-amber-700">
-            The badminton court opening date is not
-            confirmed yet. These bookings are recorded as
-            future reservations. Once the booking is
-            confirmed, the selected recurring slots will be
-            marked as reserved.
-          </p>
-        </div>
-      </div> */}
-
       {/* Alert */}
       {alert && (
         <div className="mb-6 flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700 shadow-sm">
@@ -641,55 +634,6 @@ export default function SpecialBookingsPage() {
       <div className="grid gap-6 lg:grid-cols-1">
         {/* LEFT */}
         <div className="space-y-6">
-          {/* Customer */}
-          {/* <div className="rounded-2xl border border-gray-200 bg-white p-5">
-            <div className="mb-5 flex items-center gap-2">
-              <User size={18} />
-
-              <div>
-                <h2 className="font-semibold text-gray-900">
-                  Customer Details
-                </h2>
-
-                <p className="mt-1 text-xs text-gray-500">
-                  Enter the customer information.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="text-sm font-medium text-gray-700">
-                  Customer Name
-                </label>
-
-                <input
-                  value={customerName}
-                  onChange={(e) =>
-                    setCustomerName(e.target.value)
-                  }
-                  placeholder="Enter customer name"
-                  className="mt-1.5 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none transition focus:border-amber-500"
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-gray-700">
-                  Phone Number
-                </label>
-
-                <input
-                  value={phoneNumber}
-                  onChange={(e) =>
-                    setPhoneNumber(e.target.value)
-                  }
-                  placeholder="07XXXXXXXX"
-                  className="mt-1.5 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none transition focus:border-amber-500"
-                />
-              </div>
-            </div>
-          </div> */}
-
           {/* Recurring Schedule */}
           <div className="rounded-2xl border border-gray-200 bg-white p-5">
             <div className="mb-5 flex items-center gap-2">
@@ -747,7 +691,7 @@ export default function SpecialBookingsPage() {
                     key={day}
                     type="button"
                     onClick={() => setWeekday(day)}
-                    className={`rounded-lg cursor-pointer border px-3 py-2.5 text-sm font-medium transition ${
+                    className={`cursor-pointer rounded-lg border px-3 py-2.5 text-sm font-medium transition ${
                       weekday === day
                         ? "border-amber-500 bg-amber-50 text-amber-700"
                         : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
@@ -759,7 +703,7 @@ export default function SpecialBookingsPage() {
               </div>
             </div>
 
-            {/* Time slots */}
+            {/* Time Slots */}
             <div className="mb-5">
               <div className="mb-2 flex items-center justify-between">
                 <label className="text-sm font-medium text-gray-700">
@@ -818,59 +762,16 @@ export default function SpecialBookingsPage() {
                         }`}
                       >
                         <Clock3 size={15} />
+
                         {slot}
                       </button>
                     );
                   })}
                 </div>
               )}
-
-              {/* Backend configuration information */}
-              {/* {slotConfiguration && (
-                <div className="mt-3 rounded-lg bg-gray-50 px-3 py-2">
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
-                    <span>
-                      Opening:{" "}
-                      {formatTime(
-                        timeToMinutes(
-                          slotConfiguration.startTime,
-                        ),
-                      )}
-                    </span>
-
-                    <span>
-                      Closing:{" "}
-                      {formatTime(
-                        timeToMinutes(
-                          slotConfiguration.endTime,
-                        ),
-                      )}
-                    </span>
-
-                    <span>
-                      Slot:{" "}
-                      {
-                        slotConfiguration.slotDurationMinutes
-                      }{" "}
-                      min
-                    </span>
-
-                    {slotConfiguration.slotGapMinutes >
-                      0 && (
-                      <span>
-                        Gap:{" "}
-                        {
-                          slotConfiguration.slotGapMinutes
-                        }{" "}
-                        min
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )} */}
             </div>
 
-            {/* Date + Duration */}
+            {/* Date + Number of Slots */}
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <label className="text-sm font-medium text-gray-700">
@@ -889,361 +790,67 @@ export default function SpecialBookingsPage() {
 
               <div>
                 <label className="text-sm font-medium text-gray-700">
-                  Booking Duration
+                  Number of Slots (4 slots = 1 month)
                 </label>
 
-                <select
-                  value={months}
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  inputMode="numeric"
+                  value={slotCount}
                   onChange={(e) =>
-                    setMonths(e.target.value)
+                    handleSlotCountChange(
+                      e.target.value,
+                    )
                   }
-                  className="mt-1.5 w-full cursor-pointer rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-amber-500"
-                >
-                  <option value="1">
-                    1 Month
-                  </option>
+                  onKeyDown={(e) => {
+                    if (
+                      e.key === "-" ||
+                      e.key === "+" ||
+                      e.key === "." ||
+                      e.key === "e" ||
+                      e.key === "E"
+                    ) {
+                      e.preventDefault();
+                    }
+                  }}
+                  onWheel={(e) =>
+                    e.currentTarget.blur()
+                  }
+                  placeholder="Enter number of slots"
+                  className="mt-1.5 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-amber-500"
+                />
 
-                  <option value="2">
-                    2 Months
-                  </option>
-
-                  <option value="3">
-                    3 Months
-                  </option>
-
-                  <option value="4">
-                    4 Months
-                  </option>
-
-                  <option value="5">
-                    5 Months
-                  </option>
-
-                  <option value="6">
-                    6 Months
-                  </option>
-                </select>
+                <p className="mt-1.5 text-xs text-gray-500">
+                  Enter the number of recurring slots (4 slots = 1 month).
+                </p>
               </div>
             </div>
 
-            {/* Check Availability Button */}
+            {/* Check Availability */}
             <div className="mt-6 flex justify-end">
               <button
                 type="button"
-                className="rounded-lg bg-amber-700 cursor-pointer px-4 py-2.5 text-sm font-medium text-white hover:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
+                onClick={() => {
+                  if (occurrenceCount < 1) {
+                    setAlert(
+                      "Please enter a valid number of slots.",
+                    );
+                    return;
+                  }
+
+                  setAlert(
+                    "Availability check completed.",
+                  );
+                }}
+                className="cursor-pointer rounded-lg bg-amber-700 px-4 py-2.5 text-sm font-medium text-white hover:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
               >
                 Check Availability
               </button>
             </div>
           </div>
-
-          {/* Payment */}
-          {/* <div className="rounded-2xl border border-gray-200 bg-white p-5">
-            <div className="mb-5 flex items-center gap-2">
-              <WalletCards size={18} />
-
-              <div>
-                <h2 className="font-semibold text-gray-900">
-                  Payment
-                </h2>
-
-                <p className="mt-1 text-xs text-gray-500">
-                  Select the payment plan and method.
-                </p>
-              </div>
-            </div>
-
-            <div className="mb-5">
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Payment Plan
-              </label>
-
-              <div className="grid gap-3 md:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setPaymentPlan("full")
-                  }
-                  className={`rounded-xl border p-4 text-left ${
-                    paymentPlan === "full"
-                      ? "border-amber-500 bg-amber-50"
-                      : "border-gray-200"
-                  }`}
-                >
-                  <p className="font-semibold text-gray-900">
-                    Full Payment
-                  </p>
-
-                  <p className="mt-1 text-xs text-gray-500">
-                    Pay the complete booking amount now.
-                  </p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setPaymentPlan("installments")
-                  }
-                  className={`rounded-xl border p-4 text-left ${
-                    paymentPlan === "installments"
-                      ? "border-amber-500 bg-amber-50"
-                      : "border-gray-200"
-                  }`}
-                >
-                  <p className="font-semibold text-gray-900">
-                    2 Installments
-                  </p>
-
-                  <p className="mt-1 text-xs text-gray-500">
-                    Fixed 50% + 50% payment plan.
-                  </p>
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Payment Method
-              </label>
-
-              <div className="flex gap-6">
-                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                  <input
-                    type="radio"
-                    checked={
-                      paymentMethod === "cash"
-                    }
-                    onChange={() =>
-                      setPaymentMethod("cash")
-                    }
-                  />
-
-                  Cash
-                </label>
-
-                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                  <input
-                    type="radio"
-                    checked={
-                      paymentMethod === "card"
-                    }
-                    onChange={() =>
-                      setPaymentMethod("card")
-                    }
-                  />
-
-                  <CreditCard size={15} />
-
-                  Card
-                </label>
-              </div>
-            </div>
-          </div> */}
         </div>
-
-        {/* RIGHT SUMMARY */}
-        {/* <div className="h-fit lg:sticky lg:top-6">
-          <div className="rounded-2xl border border-gray-200 bg-white p-5">
-            <div className="mb-5 flex items-center gap-2">
-              <CalendarDays size={18} />
-
-              <h3 className="font-semibold">
-                Booking Summary
-              </h3>
-            </div>
-
-            <div className="space-y-4">
-              <div className="rounded-xl bg-gray-50 p-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <span className="text-sm text-gray-500">
-                    Court
-                  </span>
-
-                  <span className="font-medium">
-                    {selectedCourtName}
-                  </span>
-                </div>
-
-                <div className="mb-3 flex items-center justify-between">
-                  <span className="text-sm text-gray-500">
-                    Frequency
-                  </span>
-
-                  <span className="font-medium">
-                    Every {weekday}
-                  </span>
-                </div>
-
-                <div className="mb-3 flex items-center justify-between">
-                  <span className="text-sm text-gray-500">
-                    Duration
-                  </span>
-
-                  <span className="font-medium">
-                    {months} Months
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-500">
-                    Occurrences
-                  </span>
-
-                  <span className="font-medium">
-                    {occurrenceCount}
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <p className="mb-2 text-sm font-medium">
-                  Selected Times
-                </p>
-
-                {selectedSlots.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-gray-200 px-3 py-3 text-xs text-gray-400">
-                    No time slot selected.
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {selectedSlots.map((slot) => (
-                      <div
-                        key={slot}
-                        className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2"
-                      >
-                        <span className="text-sm">
-                          {slot}
-                        </span>
-
-                        <span className="text-xs text-gray-500">
-                          {occurrenceCount}x
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="border-t pt-4">
-                <div className="mb-2 flex items-center gap-2">
-                  <Tag size={16} />
-
-                  <span className="text-sm font-medium">
-                    Coupon Code
-                  </span>
-                </div>
-
-                <div className="flex gap-2">
-                  <input
-                    value={couponCode}
-                    onChange={(e) =>
-                      setCouponCode(e.target.value)
-                    }
-                    placeholder="Enter coupon"
-                    className="min-w-0 flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-amber-500"
-                  />
-
-                  <button
-                    type="button"
-                    onClick={handleApplyCoupon}
-                    className="rounded-lg border border-gray-300 px-3 text-sm font-medium hover:bg-gray-50"
-                  >
-                    Apply
-                  </button>
-                </div>
-
-                {couponApplied && (
-                  <p className="mt-2 text-xs text-emerald-600">
-                    10% discount applied.
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2 border-t pt-4">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">
-                    Slots
-                  </span>
-
-                  <span>{totalSlots}</span>
-                </div>
-
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">
-                    Subtotal
-                  </span>
-
-                  <span>
-                    Rs.{" "}
-                    {subtotal.toLocaleString()}
-                  </span>
-                </div>
-
-                {discount > 0 && (
-                  <div className="flex justify-between text-sm text-emerald-600">
-                    <span>Discount</span>
-
-                    <span>
-                      - Rs.{" "}
-                      {discount.toLocaleString()}
-                    </span>
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between border-t pt-3">
-                  <span className="font-medium">
-                    Total Amount
-                  </span>
-
-                  <span className="text-2xl font-bold text-amber-600">
-                    Rs.{" "}
-                    {totalAmount.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-              {paymentPlan === "installments" && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-amber-700">
-                      First Payment
-                    </span>
-
-                    <span className="font-semibold text-amber-800">
-                      Rs.{" "}
-                      {installmentAmount.toLocaleString()}
-                    </span>
-                  </div>
-
-                  <div className="mt-2 flex justify-between text-sm">
-                    <span className="text-amber-700">
-                      Second Payment
-                    </span>
-
-                    <span className="font-semibold text-amber-800">
-                      Rs.{" "}
-                      {installmentAmount.toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <button
-              type="button"
-              onClick={handleCreateBooking}
-              disabled={
-                isLoadingCourts ||
-                isLoadingSlots ||
-                timeSlots.length === 0
-              }
-              className="mt-6 flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 via-amber-600 to-orange-700 font-medium text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Record Special Booking
-
-              <ChevronRight size={18} />
-            </button>
-          </div>
-        </div> */}
       </div>
 
       {/* Confirmation Modal */}
@@ -1339,21 +946,21 @@ export default function SpecialBookingsPage() {
 
                   <div>
                     <p className="text-xs text-gray-500">
-                      Duration
+                      Number of Slots (4 slots = 1 month)
                     </p>
 
                     <p className="mt-1 font-medium">
-                      {months} Months
+                      {occurrenceCount}
                     </p>
                   </div>
 
                   <div>
                     <p className="text-xs text-gray-500">
-                      Occurrences
+                      Total Selected Slots (4 slots = 1 month)
                     </p>
 
                     <p className="mt-1 font-medium">
-                      {occurrenceCount}
+                      {totalSlots}
                     </p>
                   </div>
                 </div>
