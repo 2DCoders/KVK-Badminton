@@ -3,6 +3,7 @@ import { getEnv } from "@/env";
 
 const { API_URL } = getEnv();
 const BOOKING_API_URL = `${API_URL}badminton/bookings/`;
+const TEMP_BOOKING_API_URL = `${API_URL}temporary-bookings/`;
 
 const getToken = () => {
   const cashier = localStorage.getItem("cashier")
@@ -28,6 +29,19 @@ export const bookingSlots = async (bookingData: any) => {
 export const confirmBooking = async (customerData: any) => {
     try {
         const response = await axios.post(`${BOOKING_API_URL}confirm-multi`, customerData, {
+            headers: {
+                Authorization: `Bearer ${getToken()}`,
+            },
+        });
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}
+
+export const checkAvailabilityTemp = async (bookingData: any) => {
+    try {
+        const response = await axios.post(`${TEMP_BOOKING_API_URL}check-availability`, bookingData, {
             headers: {
                 Authorization: `Bearer ${getToken()}`,
             },
