@@ -25,6 +25,19 @@ export const getSlotById = async (id: string) => {
     }
 }
 
+export const getSlotByCourtId = async (id: string) => {
+    try {
+        const response = await axios.get(`${SLOTS_API_URL}court-slots-by-id/${id}`, {
+            headers: {
+                Authorization: `Bearer ${getToken()}`,
+            },
+        });
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}
+
 export const createSlot = async (slotData: any) => {
     try {
         const response = await axios.post(`${SLOTS_API_URL}`, slotData, {
