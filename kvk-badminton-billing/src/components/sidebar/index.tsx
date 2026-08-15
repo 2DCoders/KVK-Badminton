@@ -73,13 +73,13 @@ export default function Sidebar({ isOpen, isMobile, onClose }: SidebarProps) {
       path: '/court-settings',
       submenu: null,
     },
-    {
-      id: 'bookings',
-      label: 'Bookings',
-      icon: Calendar,
-      path: '/bookings',
-      submenu: null,
-    },
+    // {
+    //   id: 'bookings',
+    //   label: 'Bookings',
+    //   icon: Calendar,
+    //   path: '/bookings',
+    //   submenu: null,
+    // },
     {
       id: 'special-bookings',
       label: 'Special Bookings',

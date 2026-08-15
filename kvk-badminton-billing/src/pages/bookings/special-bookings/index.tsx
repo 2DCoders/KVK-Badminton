@@ -307,7 +307,7 @@ export default function SpecialBookingsPage() {
     Math.max(
       0,
       availabilityApiFinalAmount -
-        calculatedCouponDiscount,
+      calculatedCouponDiscount,
     );
 
   const paymentAmount =
@@ -774,7 +774,7 @@ export default function SpecialBookingsPage() {
       const calculatedDiscount =
         Math.round(
           availabilityApiFinalAmount *
-            0.1,
+          0.1,
         );
 
       setCouponApplied(true);
@@ -816,8 +816,8 @@ export default function SpecialBookingsPage() {
       paymentPlan === "full"
         ? finalAmount
         : Math.ceil(
-            finalAmount / 2,
-          );
+          finalAmount / 2,
+        );
 
     const newBooking: RecurringBooking = {
       id: `SB-${String(
@@ -1007,11 +1007,10 @@ export default function SpecialBookingsPage() {
                     onClick={() =>
                       toggleWeekday(day)
                     }
-                    className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border px-3 py-2.5 text-sm font-medium transition ${
-                      selected
+                    className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border px-3 py-2.5 text-sm font-medium transition ${selected
                         ? "border-amber-500 bg-amber-50 text-amber-700"
                         : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
-                    }`}
+                      }`}
                   >
                     {selected && (
                       <Check size={14} />
@@ -1087,11 +1086,10 @@ export default function SpecialBookingsPage() {
                           slot.slotId,
                         )
                       }
-                      className={`flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border px-3 py-3 text-sm font-medium transition ${
-                        selected
+                      className={`flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border px-3 py-3 text-sm font-medium transition ${selected
                           ? "border-amber-500 bg-amber-50 text-amber-700"
                           : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center gap-2">
                         <Clock3 size={15} />
@@ -1129,6 +1127,7 @@ export default function SpecialBookingsPage() {
               <input
                 type="date"
                 value={startDate}
+                disabled
                 onChange={(e) =>
                   setStartDate(
                     e.target.value,
@@ -1464,358 +1463,625 @@ export default function SpecialBookingsPage() {
           AVAILABILITY MODAL
       ====================================================== */}
 
-      {showAvailabilityModal && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      {showAvailabilityModal &&
+        createPortal(
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+            <div className="max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl">
 
-          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-xl">
+              {/* =================================================
+            MODAL HEADER
+        ================================================== */}
 
-            {/* =================================================
-                MODAL HEADER
-            ================================================== */}
+              <div className="flex items-center justify-between border-b bg-white px-6 py-5">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    {availabilityResult?.isAvailable
+                      ? "Booking Available"
+                      : "Booking Conflict"}
+                  </h2>
 
-            <div className="flex items-center justify-between border-b p-5">
-
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">
-                  {availabilityResult?.isAvailable
-                    ? "Booking Available"
-                    : "Booking Conflict"}
-                </h2>
-
-                <p className="mt-1 text-sm text-gray-500">
-                  {availabilityResult?.isAvailable
-                    ? "Review the booking and payment details."
-                    : "Some selected schedules are unavailable."}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() =>
-                  setShowAvailabilityModal(
-                    false,
-                  )
-                }
-                className="rounded-full p-2 hover:bg-gray-100"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* =================================================
-                UNAVAILABLE
-            ================================================== */}
-
-            {!availabilityResult?.isAvailable ? (
-              <div className="p-5">
-
-                <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4">
-                  <div className="flex items-start gap-3">
-
-                    <div className="rounded-full bg-red-100 p-1.5">
-                      <X
-                        size={17}
-                        className="text-red-600"
-                      />
-                    </div>
-
-                    <div>
-                      <p className="font-semibold text-red-800">
-                        Selected booking is not available
-                      </p>
-
-                      <p className="mt-1 text-sm text-red-700">
-                        One or more selected schedules
-                        are already booked for the
-                        requested period.
-                      </p>
-                    </div>
-
-                  </div>
+                  <p className="mt-1 text-sm text-gray-500">
+                    {availabilityResult?.isAvailable
+                      ? "Review the recurring booking and payment details."
+                      : "Some selected schedules are unavailable."}
+                  </p>
                 </div>
 
-                {/* Conflicts */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowAvailabilityModal(false)
+                  }
+                  className="rounded-full p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
+                >
+                  <X size={20} />
+                </button>
+              </div>
 
-                <div className="space-y-3">
+              {/* =================================================
+            UNAVAILABLE
+        ================================================== */}
 
-                  {availabilityError.length >
-                  0 ? (
-                    availabilityError.map(
-                      (
-                        conflict,
-                        index,
-                      ) => (
-                        <div
-                          key={`${conflict.slotId}-${conflict.dayOfWeek}-${index}`}
-                          className="rounded-xl border border-gray-200 bg-white p-4"
-                        >
-                          <div className="flex items-start justify-between gap-3">
+              {!availabilityResult?.isAvailable ? (
+                <div className="max-h-[calc(92vh-90px)] overflow-y-auto p-6">
 
-                            <div>
-                              <p className="font-semibold text-gray-900">
-                                {
-                                  conflict.dayOfWeek
-                                }
-                              </p>
+                  <div className="mb-5 rounded-xl border border-red-200 bg-red-50 p-5">
+                    <div className="flex items-start gap-3">
 
-                              <p className="mt-1 text-sm text-gray-600">
-                                {
-                                  conflict.slotName
-                                }
-                              </p>
+                      <div className="rounded-full bg-red-100 p-2">
+                        <X
+                          size={18}
+                          className="text-red-600"
+                        />
+                      </div>
+
+                      <div>
+                        <p className="font-semibold text-red-800">
+                          Selected booking is not available
+                        </p>
+
+                        <p className="mt-1 text-sm leading-5 text-red-700">
+                          One or more selected schedules
+                          are already booked for the
+                          requested period.
+                        </p>
+                      </div>
+
+                    </div>
+                  </div>
+
+                  {/* Conflicts */}
+
+                  <div className="space-y-3">
+
+                    {availabilityError.length > 0 ? (
+                      availabilityError.map(
+                        (conflict, index) => (
+                          <div
+                            key={`${conflict.slotId}-${conflict.dayOfWeek}-${index}`}
+                            className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+                          >
+                            <div className="flex items-start justify-between gap-4">
+
+                              <div>
+                                <p className="font-semibold text-gray-900">
+                                  {conflict.dayOfWeek}
+                                </p>
+
+                                <p className="mt-1 text-sm text-gray-600">
+                                  {conflict.slotName}
+                                </p>
+                              </div>
+
+                              <span className="shrink-0 rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
+                                Unavailable
+                              </span>
+
                             </div>
 
-                            <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700">
-                              Unavailable
-                            </span>
-
+                            <div className="mt-3 border-t border-gray-100 pt-3">
+                              <p className="text-sm text-red-600">
+                                {conflict.message}
+                              </p>
+                            </div>
                           </div>
-
-                          <div className="mt-3 border-t border-gray-100 pt-3">
-
-                            <p className="text-sm text-red-600">
-                              {
-                                conflict.message
-                              }
-                            </p>
-
-                          </div>
-                        </div>
-                      ),
-                    )
-                  ) : (
-                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
-                      The selected schedules
-                      are not available for
-                      the requested period.
-                    </div>
-                  )}
-
-                </div>
-
-                {/* Conflict Duration */}
-
-                {availabilityResult && (
-                  <div className="mt-4 rounded-xl bg-gray-50 p-4">
-
-                    <div className="flex justify-between text-sm">
-
-                      <span className="text-gray-500">
-                        Requested Duration
-                      </span>
-
-                      <span className="font-medium text-gray-900">
-                        {
-                          availabilityResult.durationInWeeks
-                        }{" "}
-                        weeks
-                      </span>
-
-                    </div>
-
-                  </div>
-                )}
-
-                {/* Close */}
-
-                <div className="mt-5 flex justify-end">
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setShowAvailabilityModal(
-                        false,
-                      )
-                    }
-                    className="rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-gray-800"
-                  >
-                    Close
-                  </button>
-
-                </div>
-
-              </div>
-            ) : (
-
-              /* =================================================
-                 AVAILABLE
-              ================================================== */
-
-              <div className="space-y-5 p-5">
-
-                {/* Success */}
-
-                <div className="rounded-xl border border-green-200 bg-green-50 p-4">
-
-                  <div className="flex items-start gap-3">
-
-                    <div className="rounded-full bg-green-100 p-1.5">
-                      <Check
-                        size={17}
-                        className="text-green-600"
-                      />
-                    </div>
-
-                    <div>
-                      <p className="font-semibold text-green-800">
-                        All selected slots are available
-                      </p>
-
-                      <p className="mt-1 text-sm text-green-700">
-                        You can continue with
-                        the payment details below.
-                      </p>
-                    </div>
-
-                  </div>
-
-                </div>
-
-                {/* =================================================
-                    BOOKING SUMMARY
-                ================================================== */}
-
-                <div className="rounded-xl border border-gray-200 p-4">
-
-                  <h3 className="mb-4 text-sm font-semibold text-gray-900">
-                    Booking Summary
-                  </h3>
-
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-
-                    <div>
-                      <p className="text-xs text-gray-500">
-                        Court
-                      </p>
-
-                      <p className="mt-1 font-medium text-gray-900">
-                        {selectedCourtName}
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-xs text-gray-500">
-                        Duration
-                      </p>
-
-                      <p className="mt-1 font-medium text-gray-900">
-                        {
-                          availabilityResult?.durationInWeeks
-                        }{" "}
-                        weeks
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-xs text-gray-500">
-                        Booking Days
-                      </p>
-
-                      <p className="mt-1 font-medium text-gray-900">
-                        {selectedWeekdays.join(
-                          ", ",
-                        )}
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-xs text-gray-500">
-                        Starting Date
-                      </p>
-
-                      <p className="mt-1 font-medium text-gray-900">
-                        {startDate}
-                      </p>
-                    </div>
-
-                  </div>
-
-                  <div className="mt-4 border-t border-gray-100 pt-4">
-
-                    <p className="text-xs text-gray-500">
-                      Time Slots
-                    </p>
-
-                    <div className="mt-2 flex flex-wrap gap-2">
-
-                      {selectedSlotObjects.map(
-                        (slot) => (
-                          <span
-                            key={slot.slotId}
-                            className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700"
-                          >
-                            {formatSlotTime(
-                              slot.startTime,
-                              slot.endTime,
-                            )}
-                          </span>
                         ),
-                      )}
-
-                    </div>
-
-                  </div>
-
-                </div>
-
-                {/* =================================================
-                    PRICE SUMMARY
-                ================================================== */}
-
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-
-                  <h3 className="mb-4 text-sm font-semibold text-amber-900">
-                    Payment Summary
-                  </h3>
-
-                  <div className="space-y-2">
-
-                    <div className="flex justify-between text-sm">
-
-                      <span className="text-amber-700">
-                        Original Amount
-                      </span>
-
-                      <span className="font-medium text-amber-900">
-                        Rs.{" "}
-                        {availabilityOriginalAmount.toLocaleString()}
-                      </span>
-
-                    </div>
-
-                    {(
-                      availabilityApiDiscount +
-                      couponDiscount
-                    ) > 0 && (
-                      <div className="flex justify-between text-sm">
-
-                        <span className="text-green-700">
-                          Discount
-                        </span>
-
-                        <span className="font-medium text-green-700">
-                          - Rs.{" "}
-                          {(
-                            availabilityApiDiscount +
-                            couponDiscount
-                          ).toLocaleString()}
-                        </span>
-
+                      )
+                    ) : (
+                      <div className="rounded-xl border border-gray-200 bg-gray-50 p-5 text-sm text-gray-600">
+                        The selected schedules are not
+                        available for the requested period.
                       </div>
                     )}
 
-                    <div className="border-t border-amber-200 pt-3">
+                  </div>
 
-                      <div className="flex justify-between">
+                  {/* Duration */}
 
-                        <span className="font-semibold text-amber-800">
-                          Final Amount
-                        </span>
+                  {availabilityResult && (
+                    <div className="mt-5 rounded-xl border border-gray-200 bg-gray-50 p-4">
 
-                        <span className="text-xl font-bold text-amber-900">
-                          Rs.{" "}
-                          {payableAmount.toLocaleString()}
-                        </span>
+                      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+
+                        <div>
+                          <p className="text-xs text-gray-500">
+                            Court
+                          </p>
+
+                          <p className="mt-1 font-medium text-gray-900">
+                            {selectedCourtName}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-gray-500">
+                            Duration
+                          </p>
+
+                          <p className="mt-1 font-medium text-gray-900">
+                            {availabilityResult.durationInWeeks}{" "}
+                            weeks
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-gray-500">
+                            Starting Date
+                          </p>
+
+                          <p className="mt-1 font-medium text-gray-900">
+                            {startDate}
+                          </p>
+                        </div>
+
+                      </div>
+
+                    </div>
+                  )}
+
+                  {/* Footer */}
+
+                  <div className="mt-6 flex justify-end">
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setShowAvailabilityModal(false)
+                      }
+                      className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800"
+                    >
+                      Close
+                    </button>
+
+                  </div>
+
+                </div>
+              ) : (
+
+                /* =================================================
+                   AVAILABLE
+                ================================================== */
+
+                <div className="max-h-[calc(92vh-90px)] overflow-y-auto p-6">
+
+                  {/* Success */}
+
+                  <div className="mb-6 rounded-xl border border-green-200 bg-green-50 p-4">
+
+                    <div className="flex items-start gap-3">
+
+                      <div className="rounded-full bg-green-100 p-2">
+                        <Check
+                          size={18}
+                          className="text-green-600"
+                        />
+                      </div>
+
+                      <div>
+                        <p className="font-semibold text-green-800">
+                          All selected slots are available
+                        </p>
+
+                        <p className="mt-1 text-sm text-green-700">
+                          The selected recurring schedule
+                          is available. Complete the payment
+                          details to confirm the booking.
+                        </p>
+                      </div>
+
+                    </div>
+
+                  </div>
+
+                  {/* =================================================
+                MAIN TWO COLUMN CONTENT
+            ================================================== */}
+
+                  <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+
+                    {/* =================================================
+                  LEFT SIDE - BOOKING DETAILS
+              ================================================== */}
+
+                    <div className="space-y-5">
+
+                      {/* Booking Summary */}
+
+                      <div className="rounded-xl border border-gray-200 bg-white p-5">
+
+                        <h3 className="mb-5 text-sm font-semibold text-gray-900">
+                          Booking Summary
+                        </h3>
+
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-5 text-sm">
+
+                          <div>
+                            <p className="text-xs text-gray-500">
+                              Court
+                            </p>
+
+                            <p className="mt-1.5 font-semibold text-gray-900">
+                              {selectedCourtName}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs text-gray-500">
+                              Duration
+                            </p>
+
+                            <p className="mt-1.5 font-semibold text-gray-900">
+                              {availabilityResult?.durationInWeeks}{" "}
+                              weeks
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs text-gray-500">
+                              Starting Date
+                            </p>
+
+                            <p className="mt-1.5 font-semibold text-gray-900">
+                              {startDate}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs text-gray-500">
+                              Booking Occurrences
+                            </p>
+
+                            <p className="mt-1.5 font-semibold text-gray-900">
+                              {totalOccurrences}
+                            </p>
+                          </div>
+
+                        </div>
+
+                        {/* Days */}
+
+                        <div className="mt-5 border-t border-gray-100 pt-5">
+
+                          <p className="text-xs text-gray-500">
+                            Booking Days
+                          </p>
+
+                          <div className="mt-2 flex flex-wrap gap-2">
+
+                            {selectedWeekdays.map(
+                              (day) => (
+                                <span
+                                  key={day}
+                                  className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700"
+                                >
+                                  {day}
+                                </span>
+                              ),
+                            )}
+
+                          </div>
+
+                        </div>
+
+                        {/* Time Slots */}
+
+                        <div className="mt-5 border-t border-gray-100 pt-5">
+
+                          <p className="text-xs text-gray-500">
+                            Selected Time Slots
+                          </p>
+
+                          <div className="mt-3 space-y-2">
+
+                            {selectedSlotObjects.map(
+                              (slot) => (
+                                <div
+                                  key={slot.slotId}
+                                  className="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-3"
+                                >
+
+                                  <div className="flex items-center gap-2">
+
+                                    <Clock3
+                                      size={15}
+                                      className="text-amber-600"
+                                    />
+
+                                    <span className="text-sm font-medium text-gray-700">
+                                      {formatSlotTime(
+                                        slot.startTime,
+                                        slot.endTime,
+                                      )}
+                                    </span>
+
+                                  </div>
+
+                                  <span className="text-sm font-semibold text-gray-900">
+                                    Rs.{" "}
+                                    {Number(
+                                      slot.price,
+                                    ).toLocaleString()}
+                                  </span>
+
+                                </div>
+                              ),
+                            )}
+
+                          </div>
+
+                        </div>
+
+                      </div>
+
+                      {/* Coupon */}
+
+                      <div className="rounded-xl border border-gray-200 bg-white p-5">
+
+                        <label className="mb-2 block text-sm font-semibold text-gray-900">
+                          Coupon Code
+                        </label>
+
+                        <div className="flex gap-2">
+
+                          <input
+                            type="text"
+                            value={couponCode}
+                            onChange={(e) => {
+                              setCouponCode(
+                                e.target.value.toUpperCase(),
+                              );
+
+                              setCouponApplied(false);
+                              setCouponDiscount(0);
+                            }}
+                            placeholder="Enter coupon code"
+                            className="flex-1 rounded-lg border border-gray-200 px-3 py-2.5 text-sm uppercase outline-none transition focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                          />
+
+                          <button
+                            type="button"
+                            onClick={handleApplyCoupon}
+                            className="rounded-lg border border-amber-600 px-5 py-2.5 text-sm font-medium text-amber-700 transition hover:bg-amber-50"
+                          >
+                            Apply
+                          </button>
+
+                        </div>
+
+                        {couponApplied && (
+                          <p className="mt-2 text-xs font-medium text-green-600">
+                            Coupon applied successfully.
+                          </p>
+                        )}
+
+                      </div>
+
+                    </div>
+
+                    {/* =================================================
+                  RIGHT SIDE - PAYMENT
+              ================================================== */}
+
+                    <div className="space-y-5">
+
+                      {/* Price */}
+
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
+
+                        <h3 className="mb-4 text-sm font-semibold text-amber-900">
+                          Payment Summary
+                        </h3>
+
+                        <div className="space-y-3">
+
+                          <div className="flex justify-between text-sm">
+                            <span className="text-amber-700">
+                              Original Amount
+                            </span>
+
+                            <span className="font-medium text-amber-900">
+                              Rs.{" "}
+                              {availabilityOriginalAmount.toLocaleString()}
+                            </span>
+                          </div>
+
+                          {(
+                            availabilityApiDiscount +
+                            couponDiscount
+                          ) > 0 && (
+                              <div className="flex justify-between text-sm">
+
+                                <span className="text-green-700">
+                                  Discount
+                                </span>
+
+                                <span className="font-medium text-green-700">
+                                  - Rs.{" "}
+                                  {(
+                                    availabilityApiDiscount +
+                                    couponDiscount
+                                  ).toLocaleString()}
+                                </span>
+
+                              </div>
+                            )}
+
+                          <div className="border-t border-amber-200 pt-4">
+
+                            <div className="flex items-center justify-between">
+
+                              <span className="font-semibold text-amber-800">
+                                Final Amount
+                              </span>
+
+                              <span className="text-2xl font-bold text-amber-900">
+                                Rs.{" "}
+                                {payableAmount.toLocaleString()}
+                              </span>
+
+                            </div>
+
+                          </div>
+
+                        </div>
+
+                      </div>
+
+                      {/* Payment Plan */}
+
+                      <div className="rounded-xl border border-gray-200 bg-white p-5">
+
+                        <label className="mb-3 block text-sm font-semibold text-gray-900">
+                          Payment Plan
+                        </label>
+
+                        <div className="space-y-3">
+
+                          {/* Full */}
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPaymentPlan("full")
+                            }
+                            className={`w-full rounded-xl border p-4 text-left transition ${paymentPlan === "full"
+                                ? "border-amber-500 bg-amber-50 ring-1 ring-amber-500"
+                                : "border-gray-200 bg-white hover:border-gray-300"
+                              }`}
+                          >
+
+                            <div className="flex items-center justify-between">
+
+                              <div>
+                                <p className="text-sm font-semibold text-gray-900">
+                                  Full Payment
+                                </p>
+
+                                <p className="mt-1 text-xs text-gray-500">
+                                  Pay the complete amount now
+                                </p>
+                              </div>
+
+                              <p className="text-sm font-bold text-amber-700">
+                                Rs.{" "}
+                                {payableAmount.toLocaleString()}
+                              </p>
+
+                            </div>
+
+                          </button>
+
+                          {/* Half */}
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPaymentPlan("installments")
+                            }
+                            className={`w-full rounded-xl border p-4 text-left transition ${paymentPlan === "installments"
+                                ? "border-amber-500 bg-amber-50 ring-1 ring-amber-500"
+                                : "border-gray-200 bg-white hover:border-gray-300"
+                              }`}
+                          >
+
+                            <div className="flex items-center justify-between">
+
+                              <div>
+                                <p className="text-sm font-semibold text-gray-900">
+                                  Half Payment
+                                </p>
+
+                                <p className="mt-1 text-xs text-gray-500">
+                                  Pay 50% now
+                                </p>
+                              </div>
+
+                              <p className="text-sm font-bold text-amber-700">
+                                Rs.{" "}
+                                {Math.ceil(
+                                  payableAmount / 2,
+                                ).toLocaleString()}
+                              </p>
+
+                            </div>
+
+                          </button>
+
+                        </div>
+
+                      </div>
+
+                      {/* Payment Amount */}
+
+                      <div className="rounded-xl border border-gray-200 bg-gray-50 p-5">
+
+                        <div className="flex items-center justify-between">
+
+                          <span className="text-sm font-medium text-gray-600">
+                            Payment Amount
+                          </span>
+
+                          <span className="text-xl font-bold text-gray-900">
+                            Rs.{" "}
+                            {paymentAmount.toLocaleString()}
+                          </span>
+
+                        </div>
+
+                        {paymentPlan === "installments" && (
+                          <div className="mt-3 flex items-center justify-between border-t border-gray-200 pt-3">
+
+                            <span className="text-sm text-gray-500">
+                              Remaining Amount
+                            </span>
+
+                            <span className="font-semibold text-gray-700">
+                              Rs.{" "}
+                              {remainingAmount.toLocaleString()}
+                            </span>
+
+                          </div>
+                        )}
+
+                      </div>
+
+                      {/* Payment Method */}
+
+                      <div className="rounded-xl border border-gray-200 bg-white p-5">
+
+                        <label className="mb-3 block text-sm font-semibold text-gray-900">
+                          Payment Method
+                        </label>
+
+                        <div className="grid grid-cols-2 gap-3">
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPaymentMethod("cash")
+                            }
+                            className={`rounded-xl border px-4 py-3 text-sm font-medium transition ${paymentMethod === "cash"
+                                ? "border-amber-500 bg-amber-50 text-amber-700 ring-1 ring-amber-500"
+                                : "border-gray-200 text-gray-600 hover:border-gray-300"
+                              }`}
+                          >
+                            Cash
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPaymentMethod("card")
+                            }
+                            className={`rounded-xl border px-4 py-3 text-sm font-medium transition ${paymentMethod === "card"
+                                ? "border-amber-500 bg-amber-50 text-amber-700 ring-1 ring-amber-500"
+                                : "border-gray-200 text-gray-600 hover:border-gray-300"
+                              }`}
+                          >
+                            Card
+                          </button>
+
+                        </div>
 
                       </div>
 
@@ -1823,283 +2089,59 @@ export default function SpecialBookingsPage() {
 
                   </div>
 
-                </div>
+                  {/* =================================================
+                INFO
+            ================================================== */}
 
-                {/* =================================================
-                    COUPON
-                ================================================== */}
+                  <div className="mt-6 flex items-start gap-2 rounded-xl bg-gray-50 p-4 text-xs leading-5 text-gray-500">
 
-                <div>
-
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
-                    Coupon Code
-                  </label>
-
-                  <div className="flex gap-2">
-
-                    <input
-                      type="text"
-                      value={couponCode}
-                      onChange={(e) => {
-                        setCouponCode(
-                          e.target.value.toUpperCase(),
-                        );
-
-                        setCouponApplied(
-                          false,
-                        );
-
-                        setCouponDiscount(
-                          0,
-                        );
-                      }}
-                      placeholder="Enter coupon code"
-                      className="flex-1 rounded-lg border border-gray-200 px-3 py-2.5 text-sm uppercase outline-none focus:border-amber-500"
+                    <Info
+                      size={15}
+                      className="mt-0.5 shrink-0"
                     />
 
-                    <button
-                      type="button"
-                      onClick={
-                        handleApplyCoupon
-                      }
-                      className="rounded-lg border border-amber-600 px-4 py-2.5 text-sm font-medium text-amber-700 hover:bg-amber-50"
-                    >
-                      Apply
-                    </button>
-
-                  </div>
-
-                  {couponApplied && (
-                    <p className="mt-1.5 text-xs font-medium text-green-600">
-                      Coupon applied successfully.
+                    <p>
+                      This booking will create recurring
+                      reservations for every selected day
+                      for the selected duration. The selected
+                      payment amount will be recorded against
+                      this booking.
                     </p>
-                  )}
 
-                </div>
+                  </div>
 
-                {/* =================================================
-                    PAYMENT PLAN
-                ================================================== */}
+                  {/* =================================================
+                FOOTER
+            ================================================== */}
 
-                <div>
-
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
-                    Payment Plan
-                  </label>
-
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="mt-6 flex justify-end gap-3 border-t pt-5">
 
                     <button
                       type="button"
                       onClick={() =>
-                        setPaymentPlan(
-                          "full",
-                        )
+                        setShowAvailabilityModal(false)
                       }
-                      className={`rounded-xl border p-4 text-left transition ${
-                        paymentPlan ===
-                        "full"
-                          ? "border-amber-500 bg-amber-50"
-                          : "border-gray-200 bg-white hover:border-gray-300"
-                      }`}
+                      className="rounded-lg border border-gray-200 bg-white px-6 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
                     >
-
-                      <p className="text-sm font-semibold text-gray-900">
-                        Full Payment
-                      </p>
-
-                      <p className="mt-1 text-xs text-gray-500">
-                        Pay the complete amount
-                        now
-                      </p>
-
-                      <p className="mt-2 text-sm font-bold text-amber-700">
-                        Rs.{" "}
-                        {payableAmount.toLocaleString()}
-                      </p>
-
+                      Cancel
                     </button>
 
                     <button
                       type="button"
-                      onClick={() =>
-                        setPaymentPlan(
-                          "installments",
-                        )
-                      }
-                      className={`rounded-xl border p-4 text-left transition ${
-                        paymentPlan ===
-                        "installments"
-                          ? "border-amber-500 bg-amber-50"
-                          : "border-gray-200 bg-white hover:border-gray-300"
-                      }`}
+                      onClick={handleConfirmBooking}
+                      className="rounded-lg bg-gradient-to-r from-amber-500 via-amber-600 to-orange-700 px-7 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:from-amber-600 hover:via-amber-700 hover:to-orange-800"
                     >
-
-                      <p className="text-sm font-semibold text-gray-900">
-                        Half Payment
-                      </p>
-
-                      <p className="mt-1 text-xs text-gray-500">
-                        Pay 50% now
-                      </p>
-
-                      <p className="mt-2 text-sm font-bold text-amber-700">
-                        Rs.{" "}
-                        {Math.ceil(
-                          payableAmount /
-                            2,
-                        ).toLocaleString()}
-                      </p>
-
+                      Confirm Booking
                     </button>
 
                   </div>
 
                 </div>
-
-                {/* =================================================
-                    PAYMENT AMOUNT
-                ================================================== */}
-
-                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-
-                  <div className="flex justify-between">
-
-                    <span className="text-sm text-gray-600">
-                      Payment Amount
-                    </span>
-
-                    <span className="text-lg font-bold text-gray-900">
-                      Rs.{" "}
-                      {paymentAmount.toLocaleString()}
-                    </span>
-
-                  </div>
-
-                  {paymentPlan ===
-                    "installments" && (
-                    <div className="mt-2 flex justify-between border-t border-gray-200 pt-2 text-sm">
-
-                      <span className="text-gray-500">
-                        Remaining Amount
-                      </span>
-
-                      <span className="font-semibold text-gray-700">
-                        Rs.{" "}
-                        {remainingAmount.toLocaleString()}
-                      </span>
-
-                    </div>
-                  )}
-
-                </div>
-
-                {/* =================================================
-                    PAYMENT METHOD
-                ================================================== */}
-
-                <div>
-
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
-                    Payment Method
-                  </label>
-
-                  <div className="grid grid-cols-2 gap-3">
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setPaymentMethod(
-                          "cash",
-                        )
-                      }
-                      className={`rounded-lg border px-4 py-3 text-sm font-medium transition ${
-                        paymentMethod ===
-                        "cash"
-                          ? "border-amber-500 bg-amber-50 text-amber-700"
-                          : "border-gray-200 text-gray-600 hover:border-gray-300"
-                      }`}
-                    >
-                      Cash
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setPaymentMethod(
-                          "card",
-                        )
-                      }
-                      className={`rounded-lg border px-4 py-3 text-sm font-medium transition ${
-                        paymentMethod ===
-                        "card"
-                          ? "border-amber-500 bg-amber-50 text-amber-700"
-                          : "border-gray-200 text-gray-600 hover:border-gray-300"
-                      }`}
-                    >
-                      Card
-                    </button>
-
-                  </div>
-
-                </div>
-
-                {/* =================================================
-                    INFO
-                ================================================== */}
-
-                <div className="flex items-start gap-2 text-xs leading-5 text-gray-500">
-
-                  <Info
-                    size={15}
-                    className="mt-0.5 shrink-0"
-                  />
-
-                  <p>
-                    This booking will create
-                    recurring reservations for
-                    every selected day for the
-                    selected duration.
-                  </p>
-
-                </div>
-
-                {/* =================================================
-                    FOOTER
-                ================================================== */}
-
-                <div className="flex justify-end gap-3 border-t pt-4">
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setShowAvailabilityModal(
-                        false,
-                      )
-                    }
-                    className="rounded-lg border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100"
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={
-                      handleConfirmBooking
-                    }
-                    className="rounded-lg bg-gradient-to-r from-amber-500 via-amber-600 to-orange-700 px-5 py-2.5 text-sm font-medium text-white"
-                  >
-                    Confirm Booking
-                  </button>
-
-                </div>
-
-              </div>
-            )}
-          </div>
-        </div>,
-        document.body
-      )}
+              )}
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
