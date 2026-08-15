@@ -166,9 +166,6 @@ const formatSlotTime = (
 };
 
 export default function SpecialBookingsPage() {
-  const [customerName, setCustomerName] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
-
   const [isCheckingAvailability, setIsCheckingAvailability] =
     useState(false);
 
@@ -247,38 +244,6 @@ export default function SpecialBookingsPage() {
 
   const totalOccurrences =
     occurrenceCount * selectedWeekdays.length;
-
-  const totalSlots =
-    totalOccurrences *
-    selectedSlotObjects.length;
-
-  const singleDaySlotPrice = useMemo(() => {
-    return selectedSlotObjects.reduce(
-      (sum, slot) =>
-        sum + Number(slot.price || 0),
-      0,
-    );
-  }, [selectedSlotObjects]);
-
-  const subtotal = useMemo(() => {
-    return (
-      singleDaySlotPrice *
-      totalOccurrences
-    );
-  }, [
-    singleDaySlotPrice,
-    totalOccurrences,
-  ]);
-
-  const discount = couponApplied
-    ? Math.round(subtotal * 0.1)
-    : 0;
-
-  const totalAmount = Math.max(
-    0,
-    subtotal - discount,
-  );
-
   // =========================================================
   // API AMOUNTS
   // =========================================================
@@ -824,10 +789,9 @@ export default function SpecialBookingsPage() {
         bookings.length + 1,
       ).padStart(4, "0")}`,
 
-      customerName:
-        customerName || "Special Booking",
+      customerName: "Special Booking",
 
-      phone: phoneNumber,
+      phone: "0000000000",
 
       weekdays: [
         ...selectedWeekdays,
