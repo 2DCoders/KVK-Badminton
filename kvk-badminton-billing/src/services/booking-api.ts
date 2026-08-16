@@ -51,3 +51,17 @@ export const checkAvailabilityTemp = async (bookingData: any) => {
         throw error;
     }
 }
+
+export const tempBookingSlots = async (bookingData: any) => {
+    try {
+        const response = await axios.post(`${TEMP_BOOKING_API_URL}`, bookingData, {
+            headers: {
+                Authorization: `Bearer ${getToken()}`,
+                "Content-Type": "multipart/form-data",
+            },
+        });
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}
