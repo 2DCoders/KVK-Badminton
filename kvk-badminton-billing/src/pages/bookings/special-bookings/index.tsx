@@ -1083,7 +1083,7 @@ export default function SpecialBookingsPage() {
             selectedWeekdays,
 
           memberId:
-            memberId.trim(),
+            "KVK-MEM-2026"+memberId.trim(),
 
           couponCode:
             couponApplied
