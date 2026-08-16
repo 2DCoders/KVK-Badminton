@@ -308,10 +308,6 @@ export default function SpecialBookingsPage() {
     occurrenceCount *
     selectedWeekdays.length;
 
-  const totalSlots =
-    totalOccurrences *
-    selectedSlotObjects.length;
-
   const selectedSlotTimes =
     useMemo(() => {
       return selectedSlotObjects

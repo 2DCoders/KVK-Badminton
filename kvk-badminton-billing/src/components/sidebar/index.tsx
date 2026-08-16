@@ -66,13 +66,13 @@ export default function Sidebar({ isOpen, isMobile, onClose }: SidebarProps) {
   const cashier = localStorage.getItem('cashier') ? JSON.parse(localStorage.getItem('cashier') as string) : null;
 
   const navItems: NavItem[] = [
-    {
-      id: 'court-settings',
-      label: 'Court Settings',
-      icon: Settings,
-      path: '/court-settings',
-      submenu: null,
-    },
+    // {
+    //   id: 'court-settings',
+    //   label: 'Court Settings',
+    //   icon: Settings,
+    //   path: '/court-settings',
+    //   submenu: null,
+    // },
     // {
     //   id: 'bookings',
     //   label: 'Bookings',
