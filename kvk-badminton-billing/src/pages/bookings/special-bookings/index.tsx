@@ -21,6 +21,7 @@ import {
 } from "@/services/booking-api";
 import { validateCoupon } from "@/services/offer-rate-api";
 import Alert from "@/components/ui/alert";
+import { useNavigate } from "react-router-dom";
 
 type PaymentPlan =
   | "full"
@@ -277,6 +278,16 @@ export default function SpecialBookingsPage() {
     isLoadingSlots,
     setIsLoadingSlots,
   ] = useState(false);
+
+    const navigate = useNavigate();
+
+  const dayendData = localStorage.getItem("dayEndData") ? JSON.parse(localStorage.getItem("dayEndData") as string) : null;
+
+  useEffect(() => {
+    if (!dayendData) {
+      navigate("/dayend");
+    }
+  }, [dayendData]);
 
   const occurrenceCount =
     useMemo(() => {
