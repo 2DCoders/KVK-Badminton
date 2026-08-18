@@ -15,7 +15,7 @@ const getToken = () => {
   return cashier?.token ?? null;
 };
 
-export const validateCoupon = async (couponCode: string,  originalAmount: string) => {
+export const validateCoupon = async (couponCode: string,  originalAmount: string, slotCountForBadminton: number) => {
   const code = couponCode.trim();
 
   if (!code) {
@@ -28,6 +28,7 @@ export const validateCoupon = async (couponCode: string,  originalAmount: string
         params: {
           couponCode: code,
           originalAmount,
+          slotCountForBadminton,
           moduleName: "badminton",
         },
         headers: {

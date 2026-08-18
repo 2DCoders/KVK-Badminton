@@ -279,7 +279,7 @@ export default function SpecialBookingsPage() {
     setIsLoadingSlots,
   ] = useState(false);
 
-    const navigate = useNavigate();
+  const navigate = useNavigate();
 
   const dayendData = localStorage.getItem("dayEndData") ? JSON.parse(localStorage.getItem("dayEndData") as string) : null;
 
@@ -886,6 +886,7 @@ export default function SpecialBookingsPage() {
           await validateCoupon(
             code,
             availabilityOriginalAmount.toString(),
+            selectedSlots.length * availabilityResult.durationInWeeks,
           );
 
         if (
@@ -1083,7 +1084,7 @@ export default function SpecialBookingsPage() {
             selectedWeekdays,
 
           memberId:
-            "KVK-MEM-2026"+memberId.trim(),
+            "KVK-MEM-2026" + memberId.trim(),
 
           couponCode:
             couponApplied
@@ -1593,10 +1594,16 @@ export default function SpecialBookingsPage() {
 
                 <button
                   type="button"
-                  onClick={() =>
+                  onClick={() => {
                     setShowAvailabilityModal(
                       false,
                     )
+                    setAvailabilityResult(null)
+                    setAvailabilityError([])
+                    setCouponCode("")
+                    setCouponApplied(false)
+                    setCouponDiscount(0)
+                  }
                   }
                   className="rounded-full cursor-pointer p-2 hover:bg-gray-100"
                 >
