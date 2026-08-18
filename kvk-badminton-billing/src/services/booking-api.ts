@@ -65,3 +65,16 @@ export const tempBookingSlots = async (bookingData: any) => {
         throw error;
     }
 }
+
+export const getAvailabilityTemp = async (bookingData: any) => {
+    try {
+        const response = await axios.post(`${TEMP_BOOKING_API_URL}availability-for-ceratin-period`, bookingData, {
+            headers: {
+                Authorization: `Bearer ${getToken()}`,
+            },
+        });
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}

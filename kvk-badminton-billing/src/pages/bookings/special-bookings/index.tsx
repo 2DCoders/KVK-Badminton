@@ -886,7 +886,7 @@ export default function SpecialBookingsPage() {
           await validateCoupon(
             code,
             availabilityOriginalAmount.toString(),
-            selectedSlots.length * availabilityResult.durationInWeeks,
+            selectedSlots.length * availabilityResult.durationInWeeks * selectedWeekdays.length,
           );
 
         if (
