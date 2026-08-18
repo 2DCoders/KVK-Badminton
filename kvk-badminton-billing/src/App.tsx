@@ -10,6 +10,7 @@ import Daypass from "./pages/daypass"
 import Bookings from "./pages/bookings"
 import CourtSettings from "./pages/court-settings"
 import SpecialBookingsPage from "./pages/bookings/special-bookings"
+import SpecialBookingsAvailability from "./pages/bookings/special-bookings/availability"
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
       <Route element={<AdminLayout><CourtSettings /></AdminLayout>} path="/court-settings" />
       <Route element={<AdminLayout><Bookings /></AdminLayout>} path="/bookings" />
       <Route element={<AdminLayout><SpecialBookingsPage /></AdminLayout>} path="/special-bookings" />
+      <Route element={<AdminLayout><SpecialBookingsAvailability /></AdminLayout>} path="/special-bookings-availability" />
       <Route element={<AdminLayout><Trainers /></AdminLayout>} path="/trainers" />
       <Route element={<AdminLayout><Daypass /></AdminLayout>} path="/daypass" />
       <Route element={<AdminLayout><Payments /></AdminLayout>} path="/payments" />

@@ -5,6 +5,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import {
+  ArrowRight,
   CalendarDays,
   Check,
   Clock3,
@@ -1269,8 +1270,9 @@ export default function SpecialBookingsPage() {
           HEADER
       ================================================== */}
 
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">
           Special Bookings
         </h1>
 
@@ -1279,6 +1281,19 @@ export default function SpecialBookingsPage() {
           court bookings for multiple
           days and time slots.
         </p>
+        </div>
+        
+
+         <button
+          type="button"
+          onClick={() =>
+            navigate("/special-bookings-availability")
+          }
+          className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
+        >
+          <ArrowRight size={16} />
+          Available Bookings
+        </button>
       </div>
 
       {/* =================================================

@@ -68,7 +68,7 @@ export const tempBookingSlots = async (bookingData: any) => {
 
 export const getAvailabilityTemp = async (bookingData: any) => {
     try {
-        const response = await axios.post(`${TEMP_BOOKING_API_URL}availability-for-ceratin-period`, bookingData, {
+        const response = await axios.post(`${TEMP_BOOKING_API_URL}availability-for-certain-period`, bookingData, {
             headers: {
                 Authorization: `Bearer ${getToken()}`,
             },
