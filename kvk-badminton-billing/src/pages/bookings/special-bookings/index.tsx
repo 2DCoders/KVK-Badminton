@@ -282,13 +282,13 @@ export default function SpecialBookingsPage() {
 
   const navigate = useNavigate();
 
-  const dayendData = localStorage.getItem("dayEndData") ? JSON.parse(localStorage.getItem("dayEndData") as string) : null;
+  // const dayendData = localStorage.getItem("dayEndData") ? JSON.parse(localStorage.getItem("dayEndData") as string) : null;
 
-  useEffect(() => {
-    if (!dayendData) {
-      navigate("/dayend");
-    }
-  }, [dayendData]);
+  // useEffect(() => {
+  //   if (!dayendData) {
+  //     navigate("/dayend");
+  //   }
+  // }, [dayendData]);
 
   const occurrenceCount =
     useMemo(() => {
@@ -1284,7 +1284,7 @@ export default function SpecialBookingsPage() {
         </div>
         
 
-         <button
+         {/* <button
           type="button"
           onClick={() =>
             navigate("/special-bookings-availability")
@@ -1293,7 +1293,7 @@ export default function SpecialBookingsPage() {
         >
           <ArrowRight size={16} />
           Available Bookings
-        </button>
+        </button> */}
       </div>
 
       {/* =================================================
