@@ -1,6 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  CheckSquare,
   Settings,
   ChevronDown,
   Calendar,
