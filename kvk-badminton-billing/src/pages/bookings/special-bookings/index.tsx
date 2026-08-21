@@ -5,6 +5,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import {
+  ArrowRight,
   CalendarDays,
   Check,
   Clock3,
@@ -21,7 +22,7 @@ import {
 } from "@/services/booking-api";
 import { validateCoupon } from "@/services/offer-rate-api";
 import Alert from "@/components/ui/alert";
-// import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 type PaymentPlan =
   | "full"
@@ -279,7 +280,7 @@ export default function SpecialBookingsPage() {
     setIsLoadingSlots,
   ] = useState(false);
 
-  // const navigate = useNavigate();
+  const navigate = useNavigate();
 
   // const dayendData = localStorage.getItem("dayEndData") ? JSON.parse(localStorage.getItem("dayEndData") as string) : null;
 
@@ -1283,7 +1284,7 @@ export default function SpecialBookingsPage() {
         </div>
         
 
-         {/* <button
+         <button
           type="button"
           onClick={() =>
             navigate("/special-bookings-availability")
@@ -1292,7 +1293,7 @@ export default function SpecialBookingsPage() {
         >
           <ArrowRight size={16} />
           Available Bookings
-        </button> */}
+        </button>
       </div>
 
       {/* =================================================
