@@ -3,6 +3,7 @@ import {
   Settings,
   ChevronDown,
   Calendar,
+  CheckSquare,
 } from 'lucide-react';
 // import { useEffect, useState } from 'react';
 // import { getDayEndData } from '@/services/dayend-api';
@@ -65,20 +66,20 @@ export default function Sidebar({ isOpen, isMobile, onClose }: SidebarProps) {
   const cashier = localStorage.getItem('cashier') ? JSON.parse(localStorage.getItem('cashier') as string) : null;
 
   const navItems: NavItem[] = [
-    // {
-    //   id: 'court-settings',
-    //   label: 'Court Settings',
-    //   icon: Settings,
-    //   path: '/court-settings',
-    //   submenu: null,
-    // },
-    // {
-    //   id: 'bookings',
-    //   label: 'Bookings',
-    //   icon: Calendar,
-    //   path: '/bookings',
-    //   submenu: null,
-    // },
+    {
+      id: 'court-settings',
+      label: 'Court Settings',
+      icon: Settings,
+      path: '/court-settings',
+      submenu: null,
+    },
+    {
+      id: 'bookings',
+      label: 'Bookings',
+      icon: Calendar,
+      path: '/bookings',
+      submenu: null,
+    },
     {
       id: 'special-bookings',
       label: 'Special Bookings',
@@ -86,13 +87,13 @@ export default function Sidebar({ isOpen, isMobile, onClose }: SidebarProps) {
       path: '/special-bookings',
       submenu: null,
     },
-    // {
-    //   id: 'dayend',
-    //   label: 'Day end',
-    //   icon: CheckSquare,
-    //   path: '/dayend',
-    //   submenu: null,
-    // },
+    {
+      id: 'dayend',
+      label: 'Day end',
+      icon: CheckSquare,
+      path: '/dayend',
+      submenu: null,
+    },
     {
       id: 'settings',
       label: 'Settings',
