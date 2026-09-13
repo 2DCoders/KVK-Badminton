@@ -317,7 +317,7 @@ export default function CourtSettings() {
               <option value="">Select a slot configuration</option>
 
               {courts
-                .filter((c) => c.status === 1)
+                // .filter((c) => c.status === 1)
                 .map((court) => (
                   <option key={court.id} value={court.id}>
                     {court.name}
