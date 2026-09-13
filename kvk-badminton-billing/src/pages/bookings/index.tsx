@@ -24,8 +24,6 @@ interface SlotAvailability {
   isBooked: boolean;
 }
 
-const SLOT_PRICE = 1500;
-
 export default function Bookings() {
   const [selectedDate, setSelectedDate] = useState(0);
   const [days, setDays] = useState<
@@ -303,7 +301,15 @@ export default function Bookings() {
     }
   };
 
-  const totalAmount = totalSlots * SLOT_PRICE;
+  const selectedSlotDetails = Object.entries(selectedSlots).flatMap(
+    ([courtId, slotIds]) =>
+      (courtSlots[courtId] || []).filter((slot) => slotIds.includes(slot.id))
+  );
+
+  const totalAmount = selectedSlotDetails.reduce(
+    (sum, slot) => sum + Number(slot.price),
+    0
+  );
   const hasSelection = totalSlots > 0;
 
   const bookingSummary = courts
@@ -732,7 +738,11 @@ export default function Bookings() {
                     <div className="flex justify-between">
                       <span className="text-sm text-gray-500">Rate</span>
 
-                      <span>Rs. {SLOT_PRICE.toLocaleString()}</span>
+                      <span>
+                        Rs. {totalSlots > 0
+                          ? (totalAmount / totalSlots).toLocaleString()
+                          : "0"}
+                      </span>
                     </div>
                   </div>
 
