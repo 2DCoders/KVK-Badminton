@@ -5,8 +5,8 @@ import {
   Calendar,
   CheckSquare,
 } from 'lucide-react';
-// import { useEffect, useState } from 'react';
-// import { getDayEndData } from '@/services/dayend-api';
+import { useEffect, useState } from 'react';
+import { getDayEndData } from '@/services/dayend-api';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -33,35 +33,35 @@ export default function Sidebar({ isOpen, isMobile, onClose }: SidebarProps) {
   const navigate = useNavigate();
   const collapsed = !isOpen && !isMobile;
 
-  // const [isDidDayEnd, setIsDidDayEnd] = useState(false);
+  const [isDidDayEnd, setIsDidDayEnd] = useState(false);
 
-  // const handleGetDayEndData = async () => {
-  //   const today = new Date().toISOString().split("T")[0];
+  const handleGetDayEndData = async () => {
+    const today = new Date().toISOString().split("T")[0];
 
-  //   try {
-  //     const res = await getDayEndData(today);
-  //     if (res && res.length > 0) {
-  //       setIsDidDayEnd(true);
-  //       localStorage.setItem("dayEndData", JSON.stringify(res[0]));
-  //     } else {
-  //       setIsDidDayEnd(false);
-  //       localStorage.removeItem("dayEndData");
-  //     }
-  //   } catch (error) {
-  //     setIsDidDayEnd(false);
-  //     localStorage.removeItem("dayEndData");
-  //   }
-  // };
+    try {
+      const res = await getDayEndData(today);
+      if (res && res.length > 0) {
+        setIsDidDayEnd(true);
+        localStorage.setItem("dayEndData", JSON.stringify(res[0]));
+      } else {
+        setIsDidDayEnd(false);
+        localStorage.removeItem("dayEndData");
+      }
+    } catch (error) {
+      setIsDidDayEnd(false);
+      localStorage.removeItem("dayEndData");
+    }
+  };
 
-  // useEffect(() => {
-  //   handleGetDayEndData();
-  // }, []);
+  useEffect(() => {
+    handleGetDayEndData();
+  }, []);
 
-  // const canAccessMenu = (itemId: string) => {
-  //   if (isDidDayEnd) return true;
+  const canAccessMenu = (itemId: string) => {
+    if (isDidDayEnd) return true;
 
-  //   return itemId === "dayend";
-  // };
+    return itemId === "dayend";
+  };
 
   const cashier = localStorage.getItem('cashier') ? JSON.parse(localStorage.getItem('cashier') as string) : null;
 
@@ -152,15 +152,16 @@ export default function Sidebar({ isOpen, isMobile, onClose }: SidebarProps) {
                 <div key={item.id}>
                   <button
                     onClick={() => {
-                      // if (!canAccessMenu(item.id)) return;
+                      if (!canAccessMenu(item.id)) return;
                       handleNavigation(item.path);
                     }}
-                    // disabled={!canAccessMenu(item.id)}
+                    disabled={!canAccessMenu(item.id)}
                     className={`cursor-pointer ${btnBase}
                       ${active && !collapsed
                         ? "bg-blue-50 text-blue-700 shadow-sm"
                         : "text-gray-700 hover:bg-gray-50"
                       }
+                      ${!canAccessMenu(item.id) ? "opacity-50 cursor-not-allowed" : ""}
                     `}
                   >
                     <div className={`flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>

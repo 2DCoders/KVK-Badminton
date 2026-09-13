@@ -249,15 +249,12 @@ export default function Bookings() {
       return;
     }
 
-    if (
-      phoneNumber.length !== 10 ||
-      !/^\d+$/.test(phoneNumber)
-    ) {
+    if (!/^07\d{8}$/.test(phoneNumber)) {
       setPageAlert({
         visible: true,
         variant: "error",
         title: "Invalid Phone Number",
-        description: "Please enter a valid 10-digit phone number.",
+        description: "Please enter a valid phone number starting with 07 and containing 10 digits.",
       });
       return;
     }
@@ -454,7 +451,11 @@ export default function Bookings() {
                 </div>
 
                 <button
-                  onClick={() => setIsBookingModalOpen(false)}
+                  onClick={() => {
+                    setIsBookingModalOpen(false)
+                    setSelectedSlots({})
+                    handleGetSlotsAvailability(days[selectedDate].date)
+                  }}
                   className="p-2 rounded-full cursor-pointer hover:bg-gray-100"
                 >
                   <X size={18} />
@@ -488,8 +489,13 @@ export default function Bookings() {
                       </label>
 
                       <input
+                        type="tel"
+                        inputMode="numeric"
+                        maxLength={10}
                         value={phoneNumber}
-                        onChange={(e) => setPhoneNumber(e.target.value)}
+                        onChange={(e) =>
+                          setPhoneNumber(e.target.value.replace(/\D/g, "").slice(0, 10))
+                        }
                         className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:border-amber-500"
                       />
 

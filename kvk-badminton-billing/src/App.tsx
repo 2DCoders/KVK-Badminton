@@ -1,12 +1,9 @@
 import { Route, Routes, Navigate } from "react-router-dom"
 import Login from "./pages/login"
-import Trainers from "./pages/trainers"
 import Payments from "./pages/payments"
-import Reports from "./pages/reports"
 import SettingsPage from "./pages/settings"
 import AdminLayout from "./layouts/admin-layout"
 import Dayend from "./pages/dayend"
-import Daypass from "./pages/daypass"
 import Bookings from "./pages/bookings"
 import CourtSettings from "./pages/court-settings"
 import SpecialBookingsPage from "./pages/bookings/special-bookings"
@@ -22,11 +19,8 @@ function App() {
       <Route element={<AdminLayout><Bookings /></AdminLayout>} path="/bookings" />
       <Route element={<AdminLayout><SpecialBookingsPage /></AdminLayout>} path="/special-bookings" />
       <Route element={<AdminLayout><SpecialBookingsAvailability /></AdminLayout>} path="/special-bookings-availability" />
-      <Route element={<AdminLayout><Trainers /></AdminLayout>} path="/trainers" />
-      <Route element={<AdminLayout><Daypass /></AdminLayout>} path="/daypass" />
       <Route element={<AdminLayout><Payments /></AdminLayout>} path="/payments" />
       <Route element={<AdminLayout><Dayend /></AdminLayout>} path="/dayend" />
-      <Route element={<AdminLayout><Reports /></AdminLayout>} path="/reports" />
       <Route element={<AdminLayout><SettingsPage /></AdminLayout>} path="/settings" />
       
       {/* Redirect to dashboard */}
