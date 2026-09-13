@@ -11,13 +11,15 @@
   },
   "dependencies": {
     "autoprefixer": "^10.5.0",
-    "postcss": "^8.5.14",
-    "tailwindcss": "^4.3.0",
     "axios": "^1.16.1",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "lucide-react": "^1.16.0",
+    "postcss": "^8.5.14",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-router-dom": "^7.15.1",
+    "tailwindcss": "^4.3.0",
     "toastify": "^2.0.1"
   },
   "devDependencies": {
