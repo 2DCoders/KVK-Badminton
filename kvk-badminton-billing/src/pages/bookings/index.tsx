@@ -455,7 +455,7 @@ export default function Bookings() {
 
                 <button
                   onClick={() => setIsBookingModalOpen(false)}
-                  className="p-2 rounded-full hover:bg-gray-100"
+                  className="p-2 rounded-full cursor-pointer hover:bg-gray-100"
                 >
                   <X size={18} />
                 </button>
