@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
 import {
   CalendarClock,
   ChevronDown,
@@ -58,6 +59,18 @@ const CONFIRMED_STATUS = 2;
 export default function Today() {
   const today = new Date();
   const todayDate = today.toISOString().split("T")[0];
+
+  const navigate = useNavigate();
+
+  const dayendData = localStorage.getItem("dayEndData")
+    ? JSON.parse(localStorage.getItem("dayEndData") as string)
+    : null;
+
+  useEffect(() => {
+    if (!dayendData) {
+      navigate("/dayend");
+    }
+  }, [dayendData, navigate]);
 
   const [bookings, setBookings] = useState<BookingRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
