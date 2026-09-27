@@ -4,6 +4,7 @@ import Payments from "./pages/payments"
 import SettingsPage from "./pages/settings"
 import AdminLayout from "./layouts/admin-layout"
 import Dayend from "./pages/dayend"
+import Today from "./pages/today"
 import Bookings from "./pages/bookings"
 import CourtSettings from "./pages/court-settings"
 import SpecialBookingsPage from "./pages/bookings/special-bookings"
@@ -17,6 +18,7 @@ function App() {
       {/* Admin Dashboard Routes */}
       <Route element={<AdminLayout><CourtSettings /></AdminLayout>} path="/court-settings" />
       <Route element={<AdminLayout><Bookings /></AdminLayout>} path="/bookings" />
+      <Route element={<AdminLayout><Today /></AdminLayout>} path="/today" />
       <Route element={<AdminLayout><SpecialBookingsPage /></AdminLayout>} path="/special-bookings" />
       <Route element={<AdminLayout><SpecialBookingsAvailability /></AdminLayout>} path="/special-bookings-availability" />
       <Route element={<AdminLayout><Payments /></AdminLayout>} path="/payments" />

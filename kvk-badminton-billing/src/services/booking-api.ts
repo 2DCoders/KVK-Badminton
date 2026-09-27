@@ -66,6 +66,35 @@ export const tempBookingSlots = async (bookingData: any) => {
     }
 }
 
+export const getBookingsList = async (params: {
+    fromDate?: string;
+    toDate?: string;
+    status?: number;
+    searchTerm?: string;
+    pageNumber?: number;
+    pageSize?: number;
+}) => {
+    try {
+        const query = new URLSearchParams(
+            Object.entries(params).reduce((acc, [key, value]) => {
+                if (value !== undefined && value !== null && value !== "") {
+                    acc[key] = String(value);
+                }
+                return acc;
+            }, {} as Record<string, string>),
+        ).toString();
+
+        const response = await axios.get(`${BOOKING_API_URL}?${query}`, {
+            headers: {
+                Authorization: `Bearer ${getToken()}`,
+            },
+        });
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}
+
 export const getAvailabilityTemp = async (bookingData: any) => {
     try {
         const response = await axios.post(`${TEMP_BOOKING_API_URL}availability-for-certain-period`, bookingData, {

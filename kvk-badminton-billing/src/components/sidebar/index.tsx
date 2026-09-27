@@ -3,6 +3,7 @@ import {
   Settings,
   ChevronDown,
   Calendar,
+  CalendarClock,
   CheckSquare,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -78,6 +79,13 @@ export default function Sidebar({ isOpen, isMobile, onClose }: SidebarProps) {
       label: 'Bookings',
       icon: Calendar,
       path: '/bookings',
+      submenu: null,
+    },
+    {
+      id: 'today',
+      label: "Today's Schedule",
+      icon: CalendarClock,
+      path: '/today',
       submenu: null,
     },
     // {
