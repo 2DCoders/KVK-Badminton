@@ -70,6 +70,7 @@ export const getBookingsList = async (params: {
     fromDate?: string;
     toDate?: string;
     status?: number;
+    courtId?: string;
     searchTerm?: string;
     pageNumber?: number;
     pageSize?: number;
