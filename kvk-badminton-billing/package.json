@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:session-expiry": "node --test tests/session-expiry.test.cjs"
   },
   "dependencies": {
     "autoprefixer": "^10.5.0",
