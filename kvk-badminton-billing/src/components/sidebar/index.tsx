@@ -88,13 +88,13 @@ export default function Sidebar({ isOpen, isMobile, onClose }: SidebarProps) {
       path: '/today',
       submenu: null,
     },
-    // {
-    //   id: 'special-bookings',
-    //   label: 'Special Bookings',
-    //   icon: Calendar,
-    //   path: '/special-bookings',
-    //   submenu: null,
-    // },
+    {
+      id: 'special-bookings',
+      label: 'Special Bookings',
+      icon: Calendar,
+      path: '/special-bookings',
+      submenu: null,
+    },
     {
       id: 'dayend',
       label: 'Day end',
