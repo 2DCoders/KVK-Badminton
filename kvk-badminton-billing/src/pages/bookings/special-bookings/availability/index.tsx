@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, CalendarDays, Check, Clock3, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-import { getCourts } from "@/services/courts-api";
-import { getAvailabilityTemp } from "@/services/booking-api";
+import { getMemberBookingSetup, getCashierAvailability, bookingError } from "@/services/special-bookings-api";
+import { getEnv } from "@/env";
+import { isDate, maximumWeeks, sriLankaToday } from "../booking-utils";
 import Alert from "@/components/ui/alert";
 
 interface Court {
@@ -33,39 +34,6 @@ const WEEKDAYS = [
   "Sunday",
 ];
 
-const PERIOD_OPTIONS = [
-  {
-    label: "1 Month",
-    months: 1,
-    weeks: 4,
-  },
-  {
-    label: "2 Months",
-    months: 2,
-    weeks: 8,
-  },
-  {
-    label: "3 Months",
-    months: 3,
-    weeks: 12,
-  },
-  {
-    label: "4 Months",
-    months: 4,
-    weeks: 16,
-  },
-  {
-    label: "5 Months",
-    months: 5,
-    weeks: 20,
-  },
-  {
-    label: "6 Months",
-    months: 6,
-    weeks: 24,
-  },
-];
-
 const formatDate = (dateString: string): string => {
   const date = new Date(dateString);
 
@@ -88,6 +56,10 @@ const formatDayDate = (dateString: string): string => {
 
 export default function SpecialBookingsAvailability() {
   const navigate = useNavigate();
+  const env = getEnv();
+  const today = sriLankaToday();
+  const startDate = isDate(env.BADMINTON_BOOKING_START_DATE) && env.BADMINTON_BOOKING_START_DATE > today ? env.BADMINTON_BOOKING_START_DATE : today;
+  const [maximumDuration, setMaximumDuration] = useState(52);
 
   const [courts, setCourts] = useState<Court[]>([]);
   const [selectedCourtId, setSelectedCourtId] = useState("");
@@ -122,13 +94,8 @@ export default function SpecialBookingsAvailability() {
     );
   }, [courts, selectedCourtId]);
 
-  const selectedPeriodData = useMemo(() => {
-    return (
-      PERIOD_OPTIONS.find(
-        (period) => period.months === selectedPeriod,
-      ) ?? PERIOD_OPTIONS[0]
-    );
-  }, [selectedPeriod]);
+  const periodOptions = Array.from({ length: maximumDuration }, (_, index) => ({ weeks: index + 1, label: `${index + 1} ${index === 0 ? "Week" : "Weeks"}` }));
+  const selectedPeriodData = periodOptions.find(period => period.weeks === selectedPeriod) ?? periodOptions[0];
 
   /*
    * ----------------------------------------------------
@@ -140,9 +107,9 @@ export default function SpecialBookingsAvailability() {
       try {
         setIsLoadingCourts(true);
 
-        const response = await getCourts();
-
-        const courtList = (response ?? []) as Court[];
+        const response = await getMemberBookingSetup();
+        setMaximumDuration(Math.min(response.maximumWeeks, maximumWeeks(env.BOOKING_DURATION) || 52));
+        const courtList = [response.court] as Court[];
 
         setCourts(courtList);
 
@@ -176,7 +143,7 @@ export default function SpecialBookingsAvailability() {
     };
 
     loadCourts();
-  }, []);
+  }, [env.BOOKING_DURATION]);
 
   /*
    * ----------------------------------------------------
@@ -255,61 +222,7 @@ export default function SpecialBookingsAvailability() {
       setIsCheckingAvailability(true);
       setAvailability([]);
 
-      /*
-       * IMPORTANT:
-       *
-       * Do not add Z.
-       *
-       * Your previous page sends the PostgreSQL
-       * datetime without the UTC suffix.
-       */
-      const startDateTime =
-        `2027-01-01T00:00:00`;
-
-      const formData = new FormData();
-
-      formData.append(
-        "daysOfWeeks",
-        selectedDay,
-      );
-
-      formData.append(
-        "futureWeeksCountToCheck",
-        String(
-          selectedPeriodData.weeks,
-        ),
-      );
-
-      formData.append(
-        "startDate",
-        startDateTime,
-      );
-
-      formData.append(
-        "courtId",
-        selectedCourtId,
-      );
-
-      console.log(
-        "Availability request:",
-        {
-          DaysOfWeeks: selectedDay,
-          FutureWeeksCountToCheck:
-            selectedPeriodData.weeks,
-          StartDate: startDateTime,
-          CourtId: selectedCourtId,
-        },
-      );
-
-      const response =
-        await getAvailabilityTemp(
-          formData,
-        );
-
-      console.log(
-        "Availability response:",
-        response,
-      );
+      const response = await getCashierAvailability({ startDate, weeks: selectedPeriodData.weeks, daysOfWeek: [selectedDay] });
 
       const result =
         (response ?? []) as AvailabilityDay[];
@@ -333,18 +246,13 @@ export default function SpecialBookingsAvailability() {
             `Availability found for ${selectedDay}.`,
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(
         "Get availability error:",
         error,
       );
 
-      const message =
-        error?.response?.data?.message ||
-        error?.response?.data?.title ||
-        error?.response?.data?.error ||
-        error?.message ||
-        "Failed to get availability.";
+      const message = bookingError(error);
 
       setPageAlert({
         visible: true,
@@ -408,7 +316,7 @@ export default function SpecialBookingsAvailability() {
       {pageAlert.visible && (
         <div className="mb-5">
           <Alert
-            variant={pageAlert.variant as any}
+            variant={pageAlert.variant}
             title={pageAlert.title}
             description={
               pageAlert.description
@@ -449,7 +357,7 @@ export default function SpecialBookingsAvailability() {
       </div>
 
       {/* MAIN CARD */}
-      <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+      <fieldset disabled={isCheckingAvailability || isLoadingCourts} className="min-w-0 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
         {/* COURT */}
         <div className="mb-6">
           <label className="mb-2 block text-sm font-medium text-gray-700">
@@ -545,11 +453,11 @@ export default function SpecialBookingsAvailability() {
             }
             className="w-full cursor-pointer rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-100 sm:max-w-md"
           >
-            {PERIOD_OPTIONS.map(
+            {periodOptions.map(
               (period) => (
                 <option
-                  key={period.months}
-                  value={period.months}
+                  key={period.weeks}
+                  value={period.weeks}
                 >
                   {period.label}
                 </option>
@@ -608,7 +516,7 @@ export default function SpecialBookingsAvailability() {
 
               <p className="mt-1 text-sm font-medium text-gray-900">
                 {formatDate(
-                  "2027-01-01",
+                  startDate,
                 )}
               </p>
             </div>
@@ -645,7 +553,7 @@ export default function SpecialBookingsAvailability() {
             )}
           </button>
         </div>
-      </div>
+      </fieldset>
 
       {/* RESULTS */}
       {availability.length > 0 && (
