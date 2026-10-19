@@ -46,7 +46,9 @@ export function bookingError(error: unknown): string {
   return error instanceof Error ? error.message : "Something went wrong. Please try again.";
 }
 
-export type AvailabilityDay = { dayOfWeekName: string; dayOfWeekDetails: { date: string; availableSlotId: string; availableSlotName: string }[] };
-export async function getCashierAvailability(schedule: Omit<BookingSchedule, "slotIds">) {
-  return (await axios.post<AvailabilityDay[]>(endpoint("cashier-availability"), schedule, auth())).data;
+export type SessionAvailability = { date: string; status: "available" | "booked" | "held" | "past" };
+export type SlotAvailability = { slotId: string; startTime: string; endTime: string; availableCount: number; totalCount: number; availableEveryWeek: boolean; sessions: SessionAvailability[] };
+export type CashierAvailability = { startDate: string; endDate: string; weeks: number; dates: string[]; slots: SlotAvailability[] };
+export async function getCashierAvailability(schedule: Omit<BookingSchedule, "slotIds">, signal?: AbortSignal) {
+  return (await axios.post<CashierAvailability>(endpoint("cashier-availability"), schedule, { ...auth(), signal })).data;
 }

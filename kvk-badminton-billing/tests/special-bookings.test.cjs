@@ -92,3 +92,16 @@ test('availability browsing queries the shared booking store with weeks and sele
   assert.deepEqual(calls[0][2], request);
   assert.equal(calls[0][3].headers.Authorization, 'Bearer staff-token');
 });
+
+test('availability returns all statuses and forwards cancellation for stale searches', async () => {
+  const response = { startDate: '2027-01-01', endDate: '2027-01-21', weeks: 3, dates: ['2027-01-04', '2027-01-11', '2027-01-18'], slots: [
+    { slotId: 'a', startTime: '08:00', endTime: '09:00', availableCount: 1, totalCount: 3, availableEveryWeek: false,
+      sessions: [{ date: '2027-01-04', status: 'booked' }, { date: '2027-01-11', status: 'held' }, { date: '2027-01-18', status: 'available' }] },
+  ] };
+  const { api, calls } = fixture([response]);
+  const signal = new AbortController().signal;
+  const result = await api.getCashierAvailability({ startDate: '2027-01-01', weeks: 3, daysOfWeek: ['Monday'] }, signal);
+  assert.deepEqual(result, response);
+  assert.equal(calls[0][3].signal, signal);
+  assert.equal(result.slots[0].availableEveryWeek, false);
+});

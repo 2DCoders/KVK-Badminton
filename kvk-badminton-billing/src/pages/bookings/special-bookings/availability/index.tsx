@@ -1,656 +1,126 @@
-import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, CalendarDays, Check, Clock3, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowLeft, CalendarDays, Check, Clock3, Loader2, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-
-import { getMemberBookingSetup, getCashierAvailability, bookingError } from "@/services/special-bookings-api";
+import { getMemberBookingSetup, getCashierAvailability, bookingError, type BookingSetup, type CashierAvailability } from "@/services/special-bookings-api";
 import { getEnv } from "@/env";
-import { isDate, maximumWeeks, sriLankaToday } from "../booking-utils";
-import Alert from "@/components/ui/alert";
+import { WEEKDAYS, endDate, isDate, maximumWeeks, slotTime, sriLankaToday } from "../booking-utils";
 
-interface Court {
-  id: string;
-  name: string;
-  [key: string]: unknown;
-}
-
-interface AvailabilitySlot {
-  date: string;
-  availableSlotId: string;
-  availableSlotName: string;
-}
-
-interface AvailabilityDay {
-  dayOfWeekName: string;
-  dayOfWeekDetails: AvailabilitySlot[];
-}
-
-const WEEKDAYS = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday",
-];
-
-const formatDate = (dateString: string): string => {
-  const date = new Date(dateString);
-
-  return date.toLocaleDateString("en-US", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+const formatDate = (date: string) => new Intl.DateTimeFormat("en-GB", {
+  day: "numeric", month: "short", year: "numeric", timeZone: "UTC",
+}).format(new Date(`${date}T00:00:00Z`));
+const statusLabels = { available: "Free", booked: "Booked", held: "On hold", past: "Already started" };
+const statusStyles = {
+  available: "border-green-200 bg-green-50 text-green-800",
+  booked: "border-red-200 bg-red-50 text-red-800",
+  held: "border-amber-200 bg-amber-50 text-amber-800",
+  past: "border-gray-200 bg-gray-100 text-gray-600",
 };
-
-const formatDayDate = (dateString: string): string => {
-  const date = new Date(dateString);
-
-  return date.toLocaleDateString("en-US", {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-  });
-};
+type Filter = "all" | "every-week" | "partial";
 
 export default function SpecialBookingsAvailability() {
   const navigate = useNavigate();
   const env = getEnv();
   const today = sriLankaToday();
-  const startDate = isDate(env.BADMINTON_BOOKING_START_DATE) && env.BADMINTON_BOOKING_START_DATE > today ? env.BADMINTON_BOOKING_START_DATE : today;
-  const [maximumDuration, setMaximumDuration] = useState(52);
+  const minDate = isDate(env.BADMINTON_BOOKING_START_DATE) && env.BADMINTON_BOOKING_START_DATE > today ? env.BADMINTON_BOOKING_START_DATE : today;
+  const configuredWeeks = maximumWeeks(env.BOOKING_DURATION) || 12;
+  const [setup, setSetup] = useState<BookingSetup | null>(null);
+  const [setupError, setSetupError] = useState("");
+  const [setupReload, setSetupReload] = useState(0);
+  const [startDate, setStartDate] = useState(minDate);
+  const [weeks, setWeeks] = useState(1);
+  const [day, setDay] = useState("Monday");
+  const [filter, setFilter] = useState<Filter>("all");
+  const [reload, setReload] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<{ key: string; data: CashierAvailability } | null>(null);
+  const [error, setError] = useState<{ key: string; message: string } | null>(null);
+  const maxWeeks = Math.min(12, setup?.maximumWeeks ?? 12, configuredWeeks);
+  const valid = isDate(startDate) && startDate >= minDate && weeks >= 1 && weeks <= maxWeeks;
+  const queryKey = `${setup?.court.id}/${startDate}/${weeks}/${day}/${reload}`;
+  const data = result?.key === queryKey ? result.data : null;
+  const currentError = error?.key === queryKey ? error.message : "";
+  const checking = !!setup && valid && !data && !currentError;
+  const allWeekCount = data?.slots.filter(slot => slot.availableEveryWeek).length ?? 0;
+  const partialCount = data?.slots.filter(slot => slot.availableCount > 0 && !slot.availableEveryWeek).length ?? 0;
+  const unavailableCount = data?.slots.filter(slot => slot.availableCount === 0).length ?? 0;
+  const visibleSlots = data?.slots.filter(slot => filter === "all" || (filter === "every-week" ? slot.availableEveryWeek : slot.availableCount > 0 && !slot.availableEveryWeek)) ?? [];
 
-  const [courts, setCourts] = useState<Court[]>([]);
-  const [selectedCourtId, setSelectedCourtId] = useState("");
-
-  const [selectedDay, setSelectedDay] =
-    useState<string>("Monday");
-
-  const [selectedPeriod, setSelectedPeriod] =
-    useState<number>(1);
-
-  const [availability, setAvailability] =
-    useState<AvailabilityDay[]>([]);
-
-  const [isLoadingCourts, setIsLoadingCourts] =
-    useState(false);
-
-  const [isCheckingAvailability, setIsCheckingAvailability] =
-    useState(false);
-
-  const [pageAlert, setPageAlert] = useState<{
-    visible: boolean;
-    variant?: "success" | "error" | "warning" | "info";
-    title?: string;
-    description?: string;
-  }>({
-    visible: false,
-  });
-
-  const selectedCourt = useMemo(() => {
-    return courts.find(
-      (court) => court.id === selectedCourtId,
-    );
-  }, [courts, selectedCourtId]);
-
-  const periodOptions = Array.from({ length: maximumDuration }, (_, index) => ({ weeks: index + 1, label: `${index + 1} ${index === 0 ? "Week" : "Weeks"}` }));
-  const selectedPeriodData = periodOptions.find(period => period.weeks === selectedPeriod) ?? periodOptions[0];
-
-  /*
-   * ----------------------------------------------------
-   * Fetch courts
-   * ----------------------------------------------------
-   */
   useEffect(() => {
-    const loadCourts = async () => {
+    const controller = new AbortController();
+    getMemberBookingSetup(controller.signal).then(value => {
+      if (controller.signal.aborted) return;
+      setSetup(value); setSetupError("");
+      setWeeks(current => Math.min(current, 12, value.maximumWeeks, configuredWeeks));
+    }).catch(reason => { if (!controller.signal.aborted) setSetupError(bookingError(reason)); });
+    return () => controller.abort();
+  }, [configuredWeeks, setupReload]);
+
+  useEffect(() => {
+    if (!setup || !valid) return;
+    const controller = new AbortController();
+    async function load() {
+      setLoading(true);
       try {
-        setIsLoadingCourts(true);
-
-        const response = await getMemberBookingSetup();
-        setMaximumDuration(Math.min(response.maximumWeeks, maximumWeeks(env.BOOKING_DURATION) || 52));
-        const courtList = [response.court] as Court[];
-
-        setCourts(courtList);
-
-        if (courtList.length > 0) {
-          setSelectedCourtId(courtList[0].id);
-        } else {
-          setPageAlert({
-            visible: true,
-            variant: "error",
-            title: "No Courts Available",
-            description:
-              "No badminton courts are available.",
-          });
-        }
-      } catch (error) {
-        console.error(
-          "Error fetching courts:",
-          error,
-        );
-
-        setPageAlert({
-          visible: true,
-          variant: "error",
-          title: "Failed to Fetch Courts",
-          description:
-            "Failed to fetch courts. Please try again later.",
-        });
-      } finally {
-        setIsLoadingCourts(false);
-      }
-    };
-
-    loadCourts();
-  }, [env.BOOKING_DURATION]);
-
-  /*
-   * ----------------------------------------------------
-   * Select weekday
-   *
-   * Only ONE weekday can be selected.
-   * ----------------------------------------------------
-   */
-  const handleDaySelect = (day: string) => {
-    setSelectedDay(day);
-
-    // Clear old availability when selection changes.
-    setAvailability([]);
-
-    setPageAlert((current) => ({
-      ...current,
-      visible: false,
-    }));
-  };
-
-  /*
-   * ----------------------------------------------------
-   * Period change
-   * ----------------------------------------------------
-   */
-  const handlePeriodChange = (
-    value: string,
-  ) => {
-    setSelectedPeriod(Number(value));
-
-    // Clear old availability.
-    setAvailability([]);
-
-    setPageAlert((current) => ({
-      ...current,
-      visible: false,
-    }));
-  };
-
-  /*
-   * ----------------------------------------------------
-   * Check availability
-   * ----------------------------------------------------
-   */
-  const handleGetAvailability = async () => {
-    setPageAlert((current) => ({
-      ...current,
-      visible: false,
-    }));
-
-    if (!selectedCourtId) {
-      setPageAlert({
-        visible: true,
-        variant: "error",
-        title: "No Court Selected",
-        description:
-          "Please select an available court.",
-      });
-
-      return;
+        const value = await getCashierAvailability({ startDate, weeks, daysOfWeek: [day] }, controller.signal);
+        if (!Array.isArray(value?.dates) || !Array.isArray(value?.slots)) throw new Error("Availability could not be loaded. Please try again.");
+        if (!controller.signal.aborted) { setResult({ key: queryKey, data: value }); setError(null); }
+      } catch (reason) {
+        if (!controller.signal.aborted) setError({ key: queryKey, message: bookingError(reason) });
+      } finally { if (!controller.signal.aborted) setLoading(false); }
     }
-
-    if (!selectedDay) {
-      setPageAlert({
-        visible: true,
-        variant: "error",
-        title: "No Day Selected",
-        description:
-          "Please select a booking day.",
-      });
-
-      return;
-    }
-
-    try {
-      setIsCheckingAvailability(true);
-      setAvailability([]);
-
-      const response = await getCashierAvailability({ startDate, weeks: selectedPeriodData.weeks, daysOfWeek: [selectedDay] });
-
-      const result =
-        (response ?? []) as AvailabilityDay[];
-
-      setAvailability(result);
-
-      if (result.length === 0) {
-        setPageAlert({
-          visible: true,
-          variant: "warning",
-          title: "No Availability",
-          description:
-            "No available slots were found for the selected period.",
-        });
-      } else {
-        setPageAlert({
-          visible: true,
-          variant: "success",
-          title: "Availability Loaded",
-          description:
-            `Availability found for ${selectedDay}.`,
-        });
-      }
-    } catch (error: unknown) {
-      console.error(
-        "Get availability error:",
-        error,
-      );
-
-      const message = bookingError(error);
-
-      setPageAlert({
-        visible: true,
-        variant: "error",
-        title: "Failed to Get Availability",
-        description: message,
-      });
-
-      setAvailability([]);
-    } finally {
-      setIsCheckingAvailability(false);
-    }
-  };
-
-  /*
-   * ----------------------------------------------------
-   * Group response by date
-   *
-   * API response can contain multiple slots for
-   * the same date.
-   * ----------------------------------------------------
-   */
-  const availabilityByDate = useMemo(() => {
-    const map = new Map<
-      string,
-      {
-        date: string;
-        slots: AvailabilitySlot[];
-      }
-    >();
-
-    availability.forEach((day) => {
-      day.dayOfWeekDetails?.forEach(
-        (slot) => {
-          const existing = map.get(
-            slot.date,
-          );
-
-          if (existing) {
-            existing.slots.push(slot);
-          } else {
-            map.set(slot.date, {
-              date: slot.date,
-              slots: [slot],
-            });
-          }
-        },
-      );
-    });
-
-    return Array.from(map.values()).sort(
-      (a, b) =>
-        new Date(a.date).getTime() -
-        new Date(b.date).getTime(),
-    );
-  }, [availability]);
+    void load();
+    return () => controller.abort();
+  }, [setup, valid, startDate, weeks, day, queryKey]);
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      {/* ALERT */}
-      {pageAlert.visible && (
-        <div className="mb-5">
-          <Alert
-            variant={pageAlert.variant}
-            title={pageAlert.title}
-            description={
-              pageAlert.description
-            }
-            onClose={() =>
-              setPageAlert((current) => ({
-                ...current,
-                visible: false,
-              }))
-            }
-          />
-        </div>
-      )}
-
-      {/* HEADER */}
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Special Booking Availability
-          </h1>
-
-          <p className="mt-1 text-sm text-gray-500">
-            Check available recurring badminton
-            slots by day and future period.
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900">Special Booking Availability</h1>
+          <p className="mt-1 text-sm text-gray-500">Find a time that is free every week for your recurring booking.</p>
         </div>
-
-        <button
-          type="button"
-          onClick={() =>
-            navigate("/special-bookings")
-          }
-          className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
-        >
-          <ArrowLeft size={16} />
-          Back to Special Bookings
-        </button>
+        <button type="button" onClick={() => navigate("/special-bookings")} className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"><ArrowLeft size={16} /> Back to Special Bookings</button>
       </div>
 
-      {/* MAIN CARD */}
-      <fieldset disabled={isCheckingAvailability || isLoadingCourts} className="min-w-0 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-        {/* COURT */}
-        <div className="mb-6">
-          <label className="mb-2 block text-sm font-medium text-gray-700">
-            Court
-          </label>
+      {setupError ? <div role="alert" className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{setupError}<button type="button" onClick={() => { setSetupError(""); setSetupReload(value => value + 1); }} className="ml-3 underline">Try again</button></div> : !setup && <p role="status" className="mb-6 flex items-center gap-2 text-sm text-gray-600"><Loader2 size={16} className="animate-spin" /> Loading court...</p>}
 
-          <div className="rounded-xl border border-amber-500 bg-amber-50 p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-semibold text-amber-800">
-                  {isLoadingCourts
-                    ? "Loading courts..."
-                    : selectedCourt?.name ??
-                      "No court selected"}
-                </p>
-
-                <p className="mt-0.5 text-xs text-amber-700">
-                  Available for special booking
-                </p>
-              </div>
-
-              {!isLoadingCourts &&
-                selectedCourtId && (
-                  <Check
-                    size={19}
-                    className="text-amber-600"
-                  />
-                )}
-            </div>
-          </div>
+      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm" aria-label="Availability options">
+        <div className="mb-6 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <CalendarDays size={22} className="text-amber-700" />
+          <div><p className="font-semibold text-amber-800">{setup?.court.name ?? "Badminton court"}</p><p className="mt-1 text-xs text-amber-700">Choose the first date, duration, and weekly booking day.</p></div>
         </div>
-
-        {/* BOOKING DAY */}
-        <div className="mb-6">
-          <div className="mb-3 flex items-center justify-between">
-            <label className="text-sm font-medium text-gray-700">
-              Booking Day
-            </label>
-
-            <span className="text-xs text-gray-500">
-              Select one day
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
-            {WEEKDAYS.map((day) => {
-              const selected =
-                selectedDay === day;
-
-              return (
-                <button
-                  key={day}
-                  type="button"
-                  onClick={() =>
-                    handleDaySelect(day)
-                  }
-                  className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-xl border px-3 py-3 text-sm font-medium transition ${
-                    selected
-                      ? "border-amber-500 bg-amber-50 text-amber-700 shadow-sm"
-                      : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
-                  }`}
-                >
-                  {selected && (
-                    <Check size={14} />
-                  )}
-
-                  {day}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="mt-2 text-xs text-gray-500">
-            Selected day:{" "}
-            <span className="font-medium text-gray-700">
-              {selectedDay}
-            </span>
-          </div>
+        <div className="mb-6 grid gap-4 sm:grid-cols-2">
+          <div><label htmlFor="availability-start" className="mb-2 block text-sm font-medium text-gray-700">Starting date</label><input id="availability-start" type="date" min={minDate} value={startDate} onChange={event => setStartDate(event.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-amber-500" /></div>
+          <div><label htmlFor="availability-duration" className="mb-2 block text-sm font-medium text-gray-700">Duration</label><select id="availability-duration" value={weeks} onChange={event => setWeeks(Number(event.target.value))} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-amber-500">{Array.from({ length: maxWeeks }, (_, index) => index + 1).map(value => <option key={value} value={value}>{value} {value === 1 ? "week" : "weeks"}</option>)}</select></div>
         </div>
-
-        {/* FUTURE PERIOD */}
-        <div className="mb-6">
-          <label className="mb-2 block text-sm font-medium text-gray-700">
-            Future Availability Period
-          </label>
-
-          <select
-            value={selectedPeriod}
-            onChange={(e) =>
-              handlePeriodChange(
-                e.target.value,
-              )
-            }
-            className="w-full cursor-pointer rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-100 sm:max-w-md"
-          >
-            {periodOptions.map(
-              (period) => (
-                <option
-                  key={period.weeks}
-                  value={period.weeks}
-                >
-                  {period.label}
-                </option>
-              ),
-            )}
-          </select>
-
-          <p className="mt-1.5 text-xs text-gray-500">
-            Availability will be checked for
-            approximately{" "}
-            <span className="font-medium">
-              {selectedPeriodData.weeks} weeks
-            </span>
-            .
-          </p>
+        <fieldset className="min-w-0 border-0 p-0">
+          <legend className="mb-3 text-sm font-medium text-gray-700">Repeat every</legend>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">{WEEKDAYS.map(value => <button key={value} type="button" aria-pressed={day === value} onClick={() => setDay(value)} className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-xl border px-3 py-3 text-sm font-medium ${day === value ? "border-amber-500 bg-amber-50 text-amber-700" : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"}`}>{day === value && <Check size={14} />}{value}</button>)}</div>
+        </fieldset>
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-gray-50 p-4 text-sm text-gray-600">
+          <p>{valid ? <>Every <strong className="text-gray-800">{day}</strong>, from {formatDate(startDate)} to {formatDate(endDate(startDate, weeks))}.</> : `Choose a valid start date on or after ${formatDate(minDate)}.`}</p>
+          <button type="button" disabled={!setup || !valid || checking || loading} onClick={() => setReload(value => value + 1)} className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 disabled:opacity-50"><RefreshCw size={14} /> Refresh</button>
         </div>
+      </section>
 
-        {/* REQUEST SUMMARY */}
-        <div className="mb-6 rounded-xl bg-gray-50 p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <CalendarDays
-              size={17}
-              className="text-gray-500"
-            />
+      {checking && <div role="status" className="mt-6 flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white p-10 text-sm text-gray-600"><Loader2 size={18} className="animate-spin" /> Checking every {day} in your booking period...</div>}
+      {currentError && <div role="alert" className="mt-6 rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-800">{currentError}<button type="button" onClick={() => setReload(value => value + 1)} className="ml-3 underline">Try again</button></div>}
 
-            <h3 className="text-sm font-semibold text-gray-800">
-              Availability Request
-            </h3>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div>
-              <p className="text-xs text-gray-500">
-                Day
-              </p>
-
-              <p className="mt-1 text-sm font-medium text-gray-900">
-                {selectedDay}
-              </p>
-            </div>
-
-            <div>
-              <p className="text-xs text-gray-500">
-                Future Period
-              </p>
-
-              <p className="mt-1 text-sm font-medium text-gray-900">
-                {selectedPeriodData.label}
-              </p>
-            </div>
-
-            <div>
-              <p className="text-xs text-gray-500">
-                Starting Date
-              </p>
-
-              <p className="mt-1 text-sm font-medium text-gray-900">
-                {formatDate(
-                  startDate,
-                )}
-              </p>
-            </div>
-          </div>
+      {data && <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm" aria-label="Availability results">
+        <div className="mb-5"><h2 className="text-lg font-semibold text-gray-900">Which times work for all {data.dates.length} {data.dates.length === 1 ? "session" : "sessions"}?</h2><p className="mt-1 text-sm text-gray-500">?Free every week? means this time is available on every selected {day}. Expand a time to see each date.</p></div>
+        <div className="mb-5 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border border-green-200 bg-green-50 p-4"><strong className="text-xl text-green-800">{allWeekCount}</strong><p className="mt-1 text-sm text-green-800">Free every week</p></div>
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4"><strong className="text-xl text-amber-800">{partialCount}</strong><p className="mt-1 text-sm text-amber-800">Partly available</p></div>
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4"><strong className="text-xl text-gray-700">{unavailableCount}</strong><p className="mt-1 text-sm text-gray-600">No free dates</p></div>
         </div>
-
-        {/* ACTION */}
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={
-              handleGetAvailability
-            }
-            disabled={
-              isCheckingAvailability ||
-              isLoadingCourts ||
-              !selectedCourtId
-            }
-            className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-amber-700 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {isCheckingAvailability ? (
-              <>
-                <Loader2
-                  size={16}
-                  className="animate-spin"
-                />
-                Checking...
-              </>
-            ) : (
-              <>
-                <CalendarDays size={16} />
-                Check Availability
-              </>
-            )}
-          </button>
-        </div>
-      </fieldset>
-
-      {/* RESULTS */}
-      {availability.length > 0 && (
-        <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-          <div className="mb-5">
-            <h2 className="text-lg font-semibold text-gray-900">
-              Available Slots
-            </h2>
-
-            <p className="mt-1 text-sm text-gray-500">
-              Available slots for{" "}
-              <span className="font-medium text-gray-700">
-                {selectedDay}
-              </span>{" "}
-              during the selected period.
-            </p>
-          </div>
-
-          <div className="space-y-4">
-            {availabilityByDate.map(
-              (item) => (
-                <div
-                  key={item.date}
-                  className="rounded-xl border border-gray-200 bg-white p-4"
-                >
-                  {/* DATE */}
-                  <div className="mb-4 flex items-center gap-3">
-                    <div className="rounded-lg bg-amber-50 p-2">
-                      <CalendarDays
-                        size={18}
-                        className="text-amber-600"
-                      />
-                    </div>
-
-                    <div>
-                      <p className="font-semibold text-gray-900">
-                        {formatDayDate(
-                          item.date,
-                        )}
-                      </p>
-
-                      <p className="text-xs text-gray-500">
-                        {formatDate(
-                          item.date,
-                        )}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* SLOTS */}
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                    {item.slots.map(
-                      (slot) => (
-                        <div
-                          key={`${item.date}-${slot.availableSlotId}`}
-                          className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5"
-                        >
-                          <Clock3
-                            size={15}
-                            className="shrink-0 text-gray-500"
-                          />
-
-                          <span className="text-sm font-medium text-gray-700">
-                            {
-                              slot.availableSlotName
-                            }
-                          </span>
-                        </div>
-                      ),
-                    )}
-                  </div>
-                </div>
-              ),
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* NO RESULT STATE */}
-      {!isCheckingAvailability &&
-        availability.length === 0 && (
-          <div className="mt-6 rounded-2xl border border-dashed border-gray-300 bg-white p-10 text-center">
-            <CalendarDays
-              size={28}
-              className="mx-auto mb-3 text-gray-400"
-            />
-
-            <h3 className="text-sm font-semibold text-gray-700">
-              No Availability Loaded
-            </h3>
-
-            <p className="mt-1 text-xs text-gray-500">
-              Select a day and future period,
-              then click Check Availability.
-            </p>
-          </div>
-        )}
+        <div className="mb-4 flex flex-wrap gap-2" aria-label="Filter times">{([{ value: "all", label: "All times" }, { value: "every-week", label: "Free every week" }, { value: "partial", label: "Partly available" }] as const).map(item => <button key={item.value} type="button" aria-pressed={filter === item.value} onClick={() => setFilter(item.value)} className={`cursor-pointer rounded-lg border px-3 py-2 text-sm ${filter === item.value ? "border-amber-500 bg-amber-50 text-amber-700" : "border-gray-200 text-gray-600"}`}>{item.label}</button>)}</div>
+        {visibleSlots.length === 0 ? <p className="rounded-xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-600">{data.slots.length === 0 ? "No active time slots are configured for this court." : filter === "every-week" ? "No time is free for every week. Try a different day, start date, or shorter duration." : filter === "partial" ? "No partly available times. Check All times to see the full schedule." : "No available times. Try a different booking period."}</p> :
+          <div className="space-y-3">{visibleSlots.map(slot => <details key={slot.slotId} className="rounded-xl border border-gray-200 bg-white">
+            <summary className="cursor-pointer p-4 marker:text-gray-400"><span className="ml-1 inline-flex flex-wrap items-center gap-x-5 gap-y-2 align-middle"><span className="inline-flex items-center gap-2 text-sm font-semibold text-gray-900"><Clock3 size={16} className="text-gray-500" />{slotTime(slot.startTime)} ? {slotTime(slot.endTime)}</span><span className={`rounded-full px-3 py-1 text-xs font-medium ${slot.availableEveryWeek ? "bg-green-50 text-green-800" : slot.availableCount > 0 ? "bg-amber-50 text-amber-800" : "bg-gray-100 text-gray-600"}`}>{slot.availableEveryWeek ? "Free every week" : slot.availableCount > 0 ? "Partly available" : "Unavailable"}</span><span className="text-xs text-gray-500">{slot.availableCount} of {slot.totalCount} dates free ? View dates</span></span></summary>
+            <div className="grid gap-2 border-t border-gray-100 p-4 sm:grid-cols-2 lg:grid-cols-3">{slot.sessions.map(session => <div key={session.date} className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-xs ${statusStyles[session.status]}`}><span>{formatDate(session.date)}</span><strong className="font-medium">{statusLabels[session.status]}</strong></div>)}</div>
+          </details>)}</div>}
+        <p className="mt-5 text-xs leading-5 text-gray-500">On hold means another booking is being completed. Availability can change; sessions are reserved only when you select Reserve sessions in Special Bookings.</p>
+      </section>}
     </div>
   );
 }
