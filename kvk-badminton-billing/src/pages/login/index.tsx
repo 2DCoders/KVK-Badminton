@@ -87,7 +87,11 @@ export default function Login() {
         visible: true,
         variant: "error",
         title: "Login Failed",
-        description: "Invalid user ID or password.",
+        description: (error as { response?: { status?: number; data?: { message?: string } } })?.response?.status === 403
+          ? (error as { response?: { data?: { message?: string } } }).response?.data?.message || 'You are not assigned to this module. Contact your administrator.'
+          : error instanceof Error && error.message === 'You are not assigned to this module. Contact your administrator.'
+            ? error.message
+            : 'Invalid user ID or password.',
       });
     } finally {
       setLoading(false);

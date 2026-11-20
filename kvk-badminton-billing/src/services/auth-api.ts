@@ -15,7 +15,10 @@ const getToken = () => {
 
 export const login = async (username: string, password: string) => {
   try {
-    const response = await axios.post(`${AUTH_API_URL}staff/login`, { username, password });
+    const response = await axios.post(`${AUTH_API_URL}staff/login`, { username, password, moduleName: 'BadmintonCourt' });
+    if (!Array.isArray(response.data.modules) || !response.data.modules.includes('BadmintonCourt')) {
+      throw new Error('You are not assigned to this module. Contact your administrator.');
+    }
     return response.data;
   } catch (error) {
     console.error("Login failed:", error);

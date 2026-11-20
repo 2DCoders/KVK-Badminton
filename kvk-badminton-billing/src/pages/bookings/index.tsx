@@ -24,8 +24,6 @@ interface SlotAvailability {
   isBooked: boolean;
 }
 
-const SLOT_PRICE = 1500;
-
 export default function Bookings() {
   const [selectedDate, setSelectedDate] = useState(0);
   const [days, setDays] = useState<
@@ -148,6 +146,21 @@ export default function Bookings() {
   }, [days, selectedDate, courts]);
 
   const handleBookingMultipleSlots = async () => {
+    const hasInactiveCourt = Object.entries(selectedSlots).some(
+      ([courtId, slotIds]) => slotIds.length > 0 &&
+        !courts.some((court) => court.id === courtId && Number(court.status) === 1)
+    );
+
+    if (hasInactiveCourt) {
+      setPageAlert({
+        visible: true,
+        variant: "error",
+        title: "Court Unavailable",
+        description: "Inactive courts cannot be booked. Please select an active court.",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       const bookings = Object.entries(selectedSlots).flatMap(
@@ -186,6 +199,10 @@ export default function Bookings() {
     formattedSlots: any[],
     slotId: string
   ) => {
+
+    if (!courts.some((court) => court.id === courtId && Number(court.status) === 1)) {
+      return;
+    }
 
     const slotIndex = formattedSlots.findIndex(s => s.id === slotId);
 
@@ -251,15 +268,12 @@ export default function Bookings() {
       return;
     }
 
-    if (
-      phoneNumber.length !== 10 ||
-      !/^\d+$/.test(phoneNumber)
-    ) {
+    if (!/^07\d{8}$/.test(phoneNumber)) {
       setPageAlert({
         visible: true,
         variant: "error",
         title: "Invalid Phone Number",
-        description: "Please enter a valid 10-digit phone number.",
+        description: "Please enter a valid phone number starting with 07 and containing 10 digits.",
       });
       return;
     }
@@ -303,7 +317,15 @@ export default function Bookings() {
     }
   };
 
-  const totalAmount = totalSlots * SLOT_PRICE;
+  const selectedSlotDetails = Object.entries(selectedSlots).flatMap(
+    ([courtId, slotIds]) =>
+      (courtSlots[courtId] || []).filter((slot) => slotIds.includes(slot.id))
+  );
+
+  const totalAmount = selectedSlotDetails.reduce(
+    (sum, slot) => sum + Number(slot.price),
+    0
+  );
   const hasSelection = totalSlots > 0;
 
   const bookingSummary = courts
@@ -324,6 +346,7 @@ export default function Bookings() {
     .filter(Boolean);
 
   const renderCourt = (court: any) => {
+    const isCourtActive = Number(court.status) === 1;
     const formattedSlots: Slot[] = (courtSlots[court.id] || []).map((slot) => {
       let status: Slot["status"] = "available";
 
@@ -355,15 +378,18 @@ export default function Bookings() {
     ).length;
 
     return (
-      <div
+      <fieldset
         key={court.id}
-        className="bg-white rounded-2xl border border-gray-200 p-5"
+        disabled={!isCourtActive}
+        aria-label={court.name}
+        aria-disabled={!isCourtActive}
+        className={`min-w-0 rounded-2xl border border-gray-200 p-5 ${isCourtActive ? "bg-white" : "bg-gray-100 opacity-60 cursor-not-allowed"}`}
       >
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-gray-900">{court.name}</h3>
 
-          <span className="text-xs text-gray-500">
-            {availableCount} Available
+          <span className={`text-xs ${isCourtActive ? "text-gray-500" : "rounded-full bg-gray-200 px-3 py-1 font-semibold text-gray-700"}`}>
+            {isCourtActive ? `${availableCount} Available` : "Inactive"}
           </span>
         </div>
 
@@ -374,7 +400,7 @@ export default function Bookings() {
             return (
               <button
                 key={slot.id}
-                disabled={slot.status !== "available"}
+                disabled={!isCourtActive || slot.status !== "available"}
                 onClick={() =>
                   toggleSlot(court.id, formattedSlots, slot.id)
                 }
@@ -386,7 +412,9 @@ export default function Bookings() {
                 font-medium
                 transition-all
                 cursor-pointer
-                ${selected
+                ${!isCourtActive
+                    ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                    : selected
                     ? "border-amber-500 bg-amber-50 text-amber-700"
                     : slot.status === "booked"
                       ? "bg-green-100 border-green-200 text-black-400 cursor-not-allowed"
@@ -401,7 +429,7 @@ export default function Bookings() {
             );
           })}
         </div>
-      </div>
+      </fieldset>
     );
   };
 
@@ -448,8 +476,12 @@ export default function Bookings() {
                 </div>
 
                 <button
-                  onClick={() => setIsBookingModalOpen(false)}
-                  className="p-2 rounded-full hover:bg-gray-100"
+                  onClick={() => {
+                    setIsBookingModalOpen(false)
+                    setSelectedSlots({})
+                    handleGetSlotsAvailability(days[selectedDate].date)
+                  }}
+                  className="p-2 rounded-full cursor-pointer hover:bg-gray-100"
                 >
                   <X size={18} />
                 </button>
@@ -482,8 +514,13 @@ export default function Bookings() {
                       </label>
 
                       <input
+                        type="tel"
+                        inputMode="numeric"
+                        maxLength={10}
                         value={phoneNumber}
-                        onChange={(e) => setPhoneNumber(e.target.value)}
+                        onChange={(e) =>
+                          setPhoneNumber(e.target.value.replace(/\D/g, "").slice(0, 10))
+                        }
                         className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:border-amber-500"
                       />
 
@@ -732,7 +769,11 @@ export default function Bookings() {
                     <div className="flex justify-between">
                       <span className="text-sm text-gray-500">Rate</span>
 
-                      <span>Rs. {SLOT_PRICE.toLocaleString()}</span>
+                      <span>
+                        Rs. {totalSlots > 0
+                          ? (totalAmount / totalSlots).toLocaleString()
+                          : "0"}
+                      </span>
                     </div>
                   </div>
 

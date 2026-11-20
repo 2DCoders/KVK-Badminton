@@ -51,3 +51,60 @@ export const checkAvailabilityTemp = async (bookingData: any) => {
         throw error;
     }
 }
+
+export const tempBookingSlots = async (bookingData: any) => {
+    try {
+        const response = await axios.post(`${TEMP_BOOKING_API_URL}`, bookingData, {
+            headers: {
+                Authorization: `Bearer ${getToken()}`,
+                "Content-Type": "multipart/form-data",
+            },
+        });
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}
+
+export const getBookingsList = async (params: {
+    fromDate?: string;
+    toDate?: string;
+    status?: number;
+    courtId?: string;
+    searchTerm?: string;
+    pageNumber?: number;
+    pageSize?: number;
+}) => {
+    try {
+        const query = new URLSearchParams(
+            Object.entries(params).reduce((acc, [key, value]) => {
+                if (value !== undefined && value !== null && value !== "") {
+                    acc[key] = String(value);
+                }
+                return acc;
+            }, {} as Record<string, string>),
+        ).toString();
+
+        const response = await axios.get(`${BOOKING_API_URL}?${query}`, {
+            headers: {
+                Authorization: `Bearer ${getToken()}`,
+            },
+        });
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}
+
+export const getAvailabilityTemp = async (bookingData: any) => {
+    try {
+        const response = await axios.post(`${TEMP_BOOKING_API_URL}availability-for-certain-period`, bookingData, {
+            headers: {
+                Authorization: `Bearer ${getToken()}`,
+            },
+        });
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}

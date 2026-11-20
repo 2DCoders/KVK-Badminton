@@ -1,9 +1,10 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  CheckSquare,
   Settings,
   ChevronDown,
   Calendar,
+  CalendarClock,
+  CheckSquare,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { getDayEndData } from '@/services/dayend-api';
@@ -35,7 +36,7 @@ export default function Sidebar({ isOpen, isMobile, onClose }: SidebarProps) {
 
   const [isDidDayEnd, setIsDidDayEnd] = useState(false);
 
-    const handleGetDayEndData = async () => {
+  const handleGetDayEndData = async () => {
     const today = new Date().toISOString().split("T")[0];
 
     try {
@@ -59,7 +60,7 @@ export default function Sidebar({ isOpen, isMobile, onClose }: SidebarProps) {
 
   const canAccessMenu = (itemId: string) => {
     if (isDidDayEnd) return true;
-    
+
     return itemId === "dayend";
   };
 
@@ -73,13 +74,20 @@ export default function Sidebar({ isOpen, isMobile, onClose }: SidebarProps) {
       path: '/court-settings',
       submenu: null,
     },
-    // {
-    //   id: 'bookings',
-    //   label: 'Bookings',
-    //   icon: Calendar,
-    //   path: '/bookings',
-    //   submenu: null,
-    // },
+    {
+      id: 'bookings',
+      label: 'Bookings',
+      icon: Calendar,
+      path: '/bookings',
+      submenu: null,
+    },
+    {
+      id: 'today',
+      label: "Today's Schedule",
+      icon: CalendarClock,
+      path: '/today',
+      submenu: null,
+    },
     {
       id: 'special-bookings',
       label: 'Special Bookings',
@@ -156,17 +164,12 @@ export default function Sidebar({ isOpen, isMobile, onClose }: SidebarProps) {
                       handleNavigation(item.path);
                     }}
                     disabled={!canAccessMenu(item.id)}
-                    className={`${btnBase}
-                      ${
-                        active && !collapsed
-                          ? "bg-blue-50 text-blue-700 shadow-sm"
-                          : "text-gray-700 hover:bg-gray-50"
+                    className={`cursor-pointer ${btnBase}
+                      ${active && !collapsed
+                        ? "bg-blue-50 text-blue-700 shadow-sm"
+                        : "text-gray-700 hover:bg-gray-50"
                       }
-                      ${
-                        !canAccessMenu(item.id)
-                          ? "opacity-50 cursor-not-allowed"
-                          : "cursor-pointer"
-                      }
+                      ${!canAccessMenu(item.id) ? "opacity-50 cursor-not-allowed" : ""}
                     `}
                   >
                     <div className={`flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
