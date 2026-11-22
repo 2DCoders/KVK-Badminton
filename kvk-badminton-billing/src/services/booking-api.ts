@@ -74,7 +74,7 @@ export const getBookingsList = async (params: {
     searchTerm?: string;
     pageNumber?: number;
     pageSize?: number;
-}) => {
+}, signal?: AbortSignal) => {
     try {
         const query = new URLSearchParams(
             Object.entries(params).reduce((acc, [key, value]) => {
@@ -86,6 +86,7 @@ export const getBookingsList = async (params: {
         ).toString();
 
         const response = await axios.get(`${BOOKING_API_URL}?${query}`, {
+            signal,
             headers: {
                 Authorization: `Bearer ${getToken()}`,
             },

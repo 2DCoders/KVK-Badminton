@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Calendar, ChevronRight, X } from "lucide-react";
+import { Calendar, CalendarDays, ChevronRight, X } from "lucide-react";
 import { getNextWorkingDays } from "@/services/holidays-api";
 import { getSlotsAvailability } from "@/services/slots-api";
 import { getCourts } from "@/services/courts-api";
@@ -7,6 +7,7 @@ import { bookingSlots, confirmBooking } from "@/services/booking-api";
 import { createPortal } from "react-dom";
 import { Alert } from "@/components/ui/alert";
 import { useNavigate } from "react-router-dom";
+import BookingsCalendar from "./bookings-calendar";
 
 interface Slot {
   id: string;
@@ -35,6 +36,7 @@ export default function Bookings() {
   >([]);
   const [courts, setCourts] = useState<any[]>([]);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   const [customerName, setCustomerName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -666,13 +668,24 @@ export default function Bookings() {
         )
       }
 
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900">Court Booking</h1>
-
-        <p className="text-sm text-gray-500 mt-1">
-          Select consecutive slots from one or multiple courts.
-        </p>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900">Court Booking</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Select consecutive slots from one or multiple courts.
+          </p>
+        </div>
+        <button
+          type="button"
+          aria-haspopup="dialog"
+          onClick={() => setIsCalendarOpen(true)}
+          className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600"
+        >
+          <CalendarDays size={18} className="text-amber-300" />
+          Bookings Calendar
+        </button>
       </div>
+      {isCalendarOpen && <BookingsCalendar onClose={() => setIsCalendarOpen(false)} />}
 
       {/* Date Selector */}
 
