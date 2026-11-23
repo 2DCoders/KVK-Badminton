@@ -1,17 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ArrowRight, CalendarDays, Check, Clock3, Info, X } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { ArrowRight, CalendarDays, Check, Clock3, FileCheck, Info, X } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import Alert from "@/components/ui/alert";
 import { getEnv } from "@/env";
-import { getMemberBookingSetup, checkMemberBooking, checkAndHoldMemberBooking, quoteMemberCoupon,
-  releaseMemberHold, confirmCashierBooking, bookingError,
-  type BookingSetup, type BookingHold, type AvailabilityQuote, type CouponQuote, type BookingConfirmation } from "@/services/special-bookings-api";
-import { WEEKDAYS, consecutiveSlots, countdown, endDate, isDate, maximumWeeks, remainingSeconds, slotTime, sriLankaToday, validateSchedule } from "./booking-utils";
+import { getCashierBookingSetup, checkMemberBooking, checkAndHoldMemberBooking, quoteCashierBooking,
+  releaseMemberHold, confirmCashierBooking, holdCashierSlip, bookingError,
+  type MemberSlot, type BookingSetup, type BookingHold, type AvailabilityQuote, type CashierPricing, type BookingConfirmation } from "@/services/special-bookings-api";
+import { CASHIER_MAX_WEEKS, WEEKDAYS, consecutiveSlots, countdown, durationLabel, endDate, isDate, maximumWeeks, remainingSeconds, slotTime, sriLankaToday, validateSchedule } from "./booking-utils";
 
 const formatSlotTime = (start: string, end: string) => `${slotTime(start)} - ${slotTime(end)}`;
+const displayPrice = (amount: number) => `Rs. ${amount.toLocaleString("en-LK", { maximumFractionDigits: 2 })}`;
 const PAYMENT_TYPE = { cash: 1, card: 2 } as const;
-type PaymentMethod = keyof typeof PAYMENT_TYPE;
+type PaymentMethod = keyof typeof PAYMENT_TYPE | "slip";
 
 export default function SpecialBookingsPage() {
   const navigate = useNavigate();
@@ -28,7 +29,7 @@ export default function SpecialBookingsPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState("");
-  const [couponQuote, setCouponQuote] = useState<CouponQuote | null>(null);
+  const [couponQuote, setCouponQuote] = useState<CashierPricing | null>(null);
   const [availabilityResult, setAvailabilityResult] = useState<(AvailabilityQuote & { durationInWeeks: number }) | null>(null);
   const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
   const [hold, setHold] = useState<BookingHold | null>(null);
@@ -42,30 +43,38 @@ export default function SpecialBookingsPage() {
   const holdRef = useRef<BookingHold | null>(null);
   const mounted = useRef(true);
   const occurrenceCount = Number(slotCount);
-  const maxWeeks = Math.min(12, setup?.maximumWeeks ?? 12, maximumWeeks(env.BOOKING_DURATION) || 12);
-  const courtSlots = setup?.slots ?? [];
-  const selectedSlotObjects = courtSlots.filter(slot => selectedSlots.includes(slot.slotId));
-  const selectedCourtName = setup?.court.name ?? "No court selected";
-  const isLoadingCourts = loading;
-  const isLoadingSlots = loading;
+  const maxWeeks = Math.min(CASHIER_MAX_WEEKS, setup?.maximumWeeks ?? CASHIER_MAX_WEEKS);
+  const courts = setup?.courts ?? [];
+  const slots = setup?.slots ?? [];
+  const courtSchedules = courts.map(court => {
+    const courtSlots = slots.filter(slot => slot.courtId === court.id);
+    return { ...court, slots: courtSlots, selected: courtSlots.filter(slot => selectedSlots.includes(slot.slotId)) };
+  });
+  const selectedCourts = courtSchedules.filter(court => court.selected.length > 0);
+  const selectedCourtNames = selectedCourts.map(court => court.name).join(", ");
   const isCheckingAvailability = busy === "check" || busy === "hold";
   const isCreatingBooking = busy === "confirm";
   const isValidatingCoupon = busy === "coupon";
-  const availabilityError = availabilityResult?.unavailableSchedules ?? [];
+  const conflictsByCourt = new Map<string, AvailabilityQuote["unavailableSchedules"]>();
+  for (const conflict of availabilityResult?.unavailableSchedules ?? []) {
+    const courtId = conflict.courtId ?? slots.find(slot => slot.slotId === conflict.slotId)?.courtId ?? "";
+    const conflicts = conflictsByCourt.get(courtId) ?? [];
+    conflicts.push(conflict);
+    conflictsByCourt.set(courtId, conflicts);
+  }
   const availabilityOriginalAmount = hold?.originalAmount ?? availabilityResult?.originalAmount ?? 0;
-  const availabilityApiDiscount = 0;
-  const couponDiscount = couponQuote?.discountAmount ?? 0;
-  const couponApplied = !!couponQuote && appliedCoupon === couponCode.trim().toUpperCase();
-  const payableAmount = couponQuote?.finalAmount ?? availabilityOriginalAmount;
-  const paymentAmount = payableAmount;
+  const couponApplied = !!couponQuote && !!appliedCoupon && appliedCoupon === couponCode.trim().toUpperCase();
+  const pricing = couponQuote ?? hold?.pricing ?? availabilityResult?.pricing;
+  const canConfirmPricing = couponApplied || (!couponCode.trim() && !!pricing?.isPromotion);
+  const payableAmount = pricing?.finalAmount ?? availabilityOriginalAmount;
   const seconds = hold ? remainingSeconds(deadline, now) : 0;
   const expired = !!hold && seconds === 0;
-  const schedule = { startDate, weeks: occurrenceCount, slotIds: selectedSlots, daysOfWeek: selectedWeekdays };
+  const schedule = { courtIds: selectedCourts.map(court => court.id), startDate, weeks: occurrenceCount, slotIds: selectedSlots, daysOfWeek: selectedWeekdays };
 
   useEffect(() => {
     const controller = new AbortController();
-    getMemberBookingSetup(controller.signal).then(data => {
-      if (!controller.signal.aborted) { setSetup(data); setSlotCount(String(Math.min(12, maximumWeeks(env.BOOKING_DURATION) || 1, data.maximumWeeks))); }
+    getCashierBookingSetup(controller.signal).then(data => {
+      if (!controller.signal.aborted) { setSetup(data); setSlotCount(String(Math.min(CASHIER_MAX_WEEKS, maximumWeeks(env.BOOKING_DURATION) || 1, data.maximumWeeks))); }
     }).catch(reason => {
       if (!controller.signal.aborted) setPageAlert({ visible: true, variant: "error", title: "Unable to load bookings", description: bookingError(reason) });
     }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
@@ -92,13 +101,18 @@ export default function SpecialBookingsPage() {
     if (lock.current || holdRef.current) return;
     invalidate(); setSelectedWeekdays(current => current.includes(day) ? current.filter(value => value !== day) : [...current, day]);
   }
-  function toggleSlot(id: string) {
+  function toggleSlot(courtName: string, slot: MemberSlot, courtSlots: MemberSlot[]) {
     if (lock.current || holdRef.current) return;
-    const next = selectedSlots.includes(id) ? selectedSlots.filter(value => value !== id) : [...selectedSlots, id];
-    if (next.length && !consecutiveSlots(next, courtSlots)) {
-      setPageAlert({ visible: true, variant: "error", title: "Invalid selection", description: "Choose consecutive time slots without gaps. Remove an end slot first." }); return;
+    const next = selectedSlots.includes(slot.slotId)
+      ? selectedSlots.filter(id => id !== slot.slotId)
+      : [...selectedSlots, slot.slotId];
+    const nextCourtSlots = courtSlots.filter(courtSlot => next.includes(courtSlot.slotId));
+    if (!consecutiveSlots(nextCourtSlots.map(courtSlot => courtSlot.slotId), courtSlots)) {
+      setPageAlert({ visible: true, variant: "error", title: courtName, description: "Choose consecutive time slots without gaps. Remove an end slot first." });
+      return;
     }
-    invalidate(); setSelectedSlots(next);
+    invalidate();
+    setSelectedSlots(next);
   }
   function handleSlotCountChange(value: string) { if (!lock.current && !holdRef.current && Number.isInteger(Number(value)) && Number(value) >= 1 && Number(value) <= maxWeeks) { invalidate(); setSlotCount(value); } }
   async function run(action: string, work: () => Promise<void>) {
@@ -111,7 +125,7 @@ export default function SpecialBookingsPage() {
     }
   }
   function handleCheckAvailability() {
-    const message = validateSchedule(startDate, minDate, occurrenceCount, maxWeeks, selectedWeekdays, selectedSlots, courtSlots);
+    const message = validateSchedule(startDate, minDate, occurrenceCount, maxWeeks, selectedWeekdays, selectedSlots, slots);
     if (!setup || message) { setPageAlert({ visible: true, variant: "error", title: "Check your schedule", description: message || "Wait for the court to load." }); return; }
     void run("check", async () => {
       invalidate();
@@ -130,13 +144,13 @@ export default function SpecialBookingsPage() {
       setCouponQuote(null); setAppliedCoupon("");
     });
   }
-  function handleApplyCoupon() {
+  function refreshPricing(requireCoupon = false) {
     if (!hold || remainingSeconds(deadline) === 0) return;
     const code = couponCode.trim().toUpperCase();
     void run("coupon", async () => {
       setCouponQuote(null); setAppliedCoupon("");
-      if (!code) throw new Error("Enter an unredeemed coupon code.");
-      const quote = await quoteMemberCoupon(hold.holdToken, code);
+      if (requireCoupon && !code) throw new Error("Enter an unredeemed coupon code.");
+      const quote = await quoteCashierBooking(hold.holdToken, code);
       setCouponQuote(quote); setAppliedCoupon(code);
     });
   }
@@ -150,12 +164,19 @@ export default function SpecialBookingsPage() {
     if (!hold || remainingSeconds(deadline) === 0) { setPageAlert({ visible: true, variant: "error", title: "Reservation expired", description: "Check availability and reserve your sessions again." }); return; }
     void run("confirm", async () => {
       if (!customerName.trim() || !/^\+?[0-9]{9,15}$/.test(phoneNumber.trim())) throw new Error("Enter the customer's name and a valid phone number.");
-      if (!couponApplied) throw new Error("Apply an unredeemed coupon before confirming.");
-      const result = await confirmCashierBooking({ holdToken: hold.holdToken, customerName: customerName.trim(), phoneNumber: phoneNumber.trim(), couponCode: appliedCoupon, paymentType: PAYMENT_TYPE[paymentMethod] });
+      if (!canConfirmPricing) throw new Error("Apply an unredeemed coupon before confirming.");
+      const request = { holdToken: hold.holdToken, customerName: customerName.trim(), phoneNumber: phoneNumber.trim(), couponCode: couponApplied ? appliedCoupon : "", expectedAmount: payableAmount };
+      if (paymentMethod === "slip") {
+        await holdCashierSlip(request);
+        holdRef.current = null;
+        navigate("/special-bookings/payment-slip-holds", { state: { holdCreated: true } });
+        return;
+      }
+      const result = await confirmCashierBooking({ ...request, paymentType: PAYMENT_TYPE[paymentMethod] });
       if (!result.succeeded || !result.bookings?.length) throw new Error("Booking has not been confirmed. Retry the same reservation.");
       holdRef.current = null; setHold(null); setShowAvailabilityModal(false); setReceipt(result);
       setAvailabilityResult(null); setCouponQuote(null); setAppliedCoupon(""); setCouponCode("");
-      setPageAlert({ visible: true, variant: "success", title: "Special booking confirmed", description: `${result.bookings.length} sessions confirmed. Total: Rs. ${result.finalAmount.toLocaleString()}. Paid by ${paymentMethod === "cash" ? "Cash" : "Card"}.` });
+      setPageAlert({ visible: true, variant: "success", title: "Special booking confirmed", description: `${result.bookings.length} sessions confirmed.${pricing?.isPromotion ? " Promotion applied." : ""} Total: Rs. ${result.finalAmount.toLocaleString()}. Paid by ${paymentMethod === "cash" ? "Cash" : "Card"}.` });
     });
   }
 
@@ -192,7 +213,12 @@ export default function SpecialBookingsPage() {
         </div>
         
 
-         <button
+        <div className="flex flex-wrap gap-2">
+          <Link to="/special-bookings/payment-slip-holds"
+            className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50">
+            <FileCheck size={16} aria-hidden="true" /> Payment slip holds
+          </Link>
+          <button
           type="button"
           onClick={() =>
             navigate("/special-bookings-availability")
@@ -202,6 +228,7 @@ export default function SpecialBookingsPage() {
           <ArrowRight size={16} />
           Available Bookings
         </button>
+        </div>
       </div>
 
       {/* =================================================
@@ -228,36 +255,6 @@ export default function SpecialBookingsPage() {
               and consecutive time
               slots.
             </p>
-          </div>
-        </div>
-
-        {/* COURT */}
-
-        <div className="mb-5">
-          <label className="mb-2 block text-sm font-medium text-gray-700">
-            Court
-          </label>
-
-          <div className="rounded-xl border border-amber-500 bg-amber-50 p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-semibold text-amber-800">
-                  {isLoadingCourts
-                    ? "Loading courts..."
-                    : selectedCourtName}
-                </p>
-
-                <p className="mt-0.5 text-xs text-amber-700">
-                  Available for special
-                  booking
-                </p>
-              </div>
-
-              <Check
-                size={19}
-                className="text-amber-600"
-              />
-            </div>
           </div>
         </div>
 
@@ -319,85 +316,49 @@ export default function SpecialBookingsPage() {
           </div>
         </div>
 
-        {/* TIME SLOTS */}
-
-        <div className="mb-5">
-          <div className="mb-2 flex items-center justify-between">
-            <label className="text-sm font-medium text-gray-700">
-              Time Slots
-            </label>
-
-            <span className="text-xs text-gray-500">
-              Consecutive slots only
-            </span>
+        <section aria-labelledby="special-booking-times" className="mb-6">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h3 id="special-booking-times" className="text-sm font-semibold text-gray-900">Court time slots</h3>
+            <p className="text-xs text-gray-500">Choose consecutive slots on each court you want to book.</p>
           </div>
-
-          {isLoadingSlots ? (
-            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center">
-              <Clock3
-                size={20}
-                className="mx-auto mb-2 animate-pulse text-gray-400"
-              />
-
-              <p className="text-sm font-medium text-gray-600">
-                Loading time slots...
-              </p>
-            </div>
-          ) : courtSlots.length ===
-            0 ? (
-            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center">
-              <Clock3
-                size={20}
-                className="mx-auto mb-2 text-gray-400"
-              />
-
-              <p className="text-sm font-medium text-gray-600">
-                No time slots
-                available
-              </p>
-            </div>
+          {loading ? (
+            <p role="status" className="rounded-xl border border-gray-200 p-4 text-sm text-gray-600">Loading courts and prices?</p>
+          ) : !courtSchedules.length ? (
+            <p className="rounded-xl border border-gray-200 p-4 text-sm text-gray-600">No active courts available.</p>
           ) : (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-              {courtSlots.map(
-                (slot) => {
-                  const selected =
-                    selectedSlots.includes(
-                      slot.slotId,
-                    );
-
-                  return (
-                    <button
-                      key={
-                        slot.slotId
-                      }
-                      type="button"
-                      onClick={() =>
-                        toggleSlot(
-                          slot.slotId,
-                        )
-                      }
-                      className={`flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border px-3 py-3 text-sm font-medium transition ${selected
-                        ? "border-amber-500 bg-amber-50 text-amber-700"
-                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
-                        }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Clock3
-                          size={15}
-                        />
-
-                        {formatSlotTime(
-                          slot.startTime,
-                          slot.endTime,
-                        )}
+            <div className="grid gap-4 lg:grid-cols-2">
+              {courtSchedules.map(court => {
+                const firstPrice = court.slots[0]?.price;
+                const uniformPrice = firstPrice !== undefined && court.slots.every(slot => slot.price === firstPrice);
+                return (
+                  <section key={court.id} aria-labelledby={`special-court-${court.id}`} className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-gray-50 px-4 py-3">
+                      <h4 id={`special-court-${court.id}`} className="font-semibold text-gray-900">{court.name}</h4>
+                      {uniformPrice && <p className="text-sm text-gray-600"><strong className="font-semibold text-gray-900">Rs. {firstPrice.toLocaleString("en-LK")}</strong> per slot</p>}
+                    </div>
+                    {court.slots.length === 0 ? (
+                      <p className="p-4 text-sm text-gray-600">No active time slots.</p>
+                    ) : (
+                      <div className="grid grid-cols-[repeat(auto-fit,minmax(8.5rem,1fr))] gap-2 p-4">
+                        {court.slots.map(slot => {
+                          const selected = selectedSlots.includes(slot.slotId);
+                          return (
+                            <button key={slot.slotId} type="button" aria-pressed={selected}
+                              onClick={() => toggleSlot(court.name, slot, court.slots)}
+                              className={`flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border px-2 py-2.5 text-center text-xs font-medium transition disabled:cursor-not-allowed ${selected ? "border-amber-500 bg-amber-50 text-amber-800" : "border-gray-200 text-gray-700 hover:border-amber-400"}`}>
+                              <span className="inline-flex items-center justify-center gap-1 whitespace-nowrap tabular-nums"><Clock3 size={12} className="shrink-0" aria-hidden="true" />{formatSlotTime(slot.startTime, slot.endTime)}</span>
+                              {!uniformPrice && <span className="text-xs font-semibold">Rs. {slot.price.toLocaleString("en-LK")}</span>}
+                            </button>
+                          );
+                        })}
                       </div>
-                    </button>
-                  );
-                },
-              )}
+                    )}
+                  </section>
+                );
+              })}
             </div>
           )}
-        </div>
+        </section>
 
         {/* DATE + DURATION */}
 
@@ -432,7 +393,7 @@ export default function SpecialBookingsPage() {
               className="mt-1.5 w-full cursor-pointer rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-amber-500"
             >
               {Array.from({ length: maxWeeks }, (_, index) => index + 1).map(weeks => (
-                <option key={weeks} value={weeks}>{weeks} {weeks === 1 ? "week" : "weeks"}</option>
+                <option key={weeks} value={weeks}>{durationLabel(weeks)}</option>
               ))}
             </select>
 
@@ -520,66 +481,35 @@ export default function SpecialBookingsPage() {
                           </p>
 
                           <p className="mt-1 text-sm text-red-700">
-                            One or more selected
-                            schedules are already
-                            booked for the requested
-                            period.
+                            Some sessions are booked, held, or have already started.
                           </p>
                         </div>
                       </div>
                     </div>
 
-                    {/* CONFLICT LIST */}
-
-                    <div className="space-y-3">
-                      {availabilityError.length >
-                        0 ? (
-                        availabilityError.map(
-                          (
-                            conflict,
-                            index,
-                          ) => (
-                            <div
-                              key={`${conflict.slotId}-${conflict.date}-${index}`}
-                              className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
-                            >
-                              <div className="flex items-start justify-between gap-4">
-                                <div>
-                                  <p className="font-semibold text-gray-900">
-                                    {
-                                      conflict.date
-                                    }
-                                  </p>
-
-                                  <p className="mt-1 text-sm text-gray-600">
-                                    {
-                                      conflict.slotName
-                                    }
-                                  </p>
-                                </div>
-
-                                <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
-                                  Unavailable
-                                </span>
-                              </div>
-
-                              <div className="mt-3 border-t border-gray-100 pt-3">
-                                <p className="text-sm text-red-600">
-                                  {
-                                    conflict.message
-                                  }
-                                </p>
-                              </div>
-                            </div>
-                          ),
-                        )
-                      ) : (
-                        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
-                          The selected schedules
-                          are not available for
-                          the requested period.
-                        </div>
-                      )}
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {selectedCourts.map(court => {
+                        const conflicts = conflictsByCourt.get(court.id) ?? [];
+                        return (
+                          <section key={court.id} className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+                            <h3 className="border-b border-gray-200 bg-gray-50 px-4 py-3 font-semibold text-gray-900">{court.name}</h3>
+                            {conflicts.length ? (
+                              <ul className="divide-y divide-gray-200">
+                                {conflicts.map(conflict => (
+                                  <li key={`${conflict.slotId}-${conflict.date}`} className="px-4 py-3 text-sm">
+                                    <p className="font-semibold text-gray-900">{conflict.date} ? {conflict.slotName}</p>
+                                    <p className="mt-1 text-red-700">{conflict.message}</p>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="px-4 py-3 text-sm text-gray-600">
+                                {conflictsByCourt.has("") ? "Some unavailable sessions could not be assigned to a court." : "No conflicts found."}
+                              </p>
+                            )}
+                          </section>
+                        );
+                      })}
                     </div>
 
                     {/* DURATION */}
@@ -638,12 +568,12 @@ export default function SpecialBookingsPage() {
                       <div className="grid grid-cols-2 gap-5 text-sm md:grid-cols-4">
                         <div>
                           <p className="text-xs text-gray-500">
-                            Court
+                            Courts
                           </p>
 
                           <p className="mt-1 font-medium text-gray-900">
                             {
-                              selectedCourtName
+                              selectedCourtNames
                             }
                           </p>
                         </div>
@@ -708,26 +638,47 @@ export default function SpecialBookingsPage() {
                           Time Slots
                         </p>
 
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {selectedSlotObjects.map(
-                            (slot) => (
-                              <span
-                                key={
-                                  slot.slotId
-                                }
-                                className="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700"
-                              >
-                                {formatSlotTime(
-                                  slot.startTime,
-                                  slot.endTime,
-                                )}
-                              </span>
-                            ),
-                          )}
+                        <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                          {selectedCourts.map(court => (
+                            <div key={court.id} className="rounded-lg bg-gray-50 px-3 py-2">
+                              <p className="mb-1 text-sm font-semibold text-gray-900">{court.name}</p>
+                              <ul className="space-y-2 text-xs text-gray-700">
+                                {court.selected.map(slot => (
+                                  <li key={slot.slotId} className="flex flex-wrap justify-between gap-x-3 gap-y-1">
+                                    <span>{formatSlotTime(slot.startTime, slot.endTime)}</span>
+                                    <span className="font-semibold tabular-nums">{displayPrice(slot.price)} / slot</span>
+                                  </li>
+                                ))}
+                              </ul>
+                              <p className="mt-2 border-t border-gray-200 pt-2 text-xs font-medium text-gray-700">
+                                Court subtotal <strong className="float-right tabular-nums">{displayPrice(court.selected.reduce((total, slot) => total + slot.price, 0) * occurrenceCount * selectedWeekdays.length)}</strong>
+                              </p>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     </div>
 
+                    {!hold && (
+                      <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm">
+                        <div className="flex justify-between gap-3">
+                          <span>Booking subtotal</span>
+                          <strong className="tabular-nums">{displayPrice(availabilityOriginalAmount)}</strong>
+                        </div>
+                        {pricing?.isPromotion && (
+                          <>
+                            <div className="mt-2 flex justify-between gap-3 text-green-800">
+                              <span>Promotion ({pricing.promotionPercentage}% on {pricing.promotionSlotCount} {pricing.promotionSlotCount === 1 ? "slot" : "slots"})</span>
+                              <span className="tabular-nums">-{displayPrice(pricing.promotionDiscount)}</span>
+                            </div>
+                            <div className="mt-2 flex justify-between gap-3 border-t border-gray-200 pt-2 font-semibold">
+                              <span>Total after promotion</span>
+                              <span className="tabular-nums">{displayPrice(payableAmount)}</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
                     {!hold ? <button type="button" onClick={reserve} disabled={!!busy} className="rounded-lg cursor-pointer bg-amber-700 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-60">{isCheckingAvailability ? "Reserving..." : "Reserve sessions"}</button> : <>
                     <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800" role="status">
                       {expired ? "Your reservation has expired. Cancel and check availability again." : `Sessions reserved for ${countdown(seconds)}. Complete your booking before the hold expires.`}
@@ -736,49 +687,28 @@ export default function SpecialBookingsPage() {
                     {/* PAYMENT SUMMARY */}
 
                     <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
-                      <h3 className="mb-4 text-sm font-semibold text-amber-900">
-                        Payment Summary
-                      </h3>
+                      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                        <h3 className="text-sm font-semibold text-amber-900">Payment Summary</h3>
+                        <button type="button" onClick={() => refreshPricing()} className="cursor-pointer text-xs font-medium text-amber-900 underline">Refresh pricing</button>
+                      </div>
 
                       <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-amber-700">
-                            Original Amount
-                          </span>
-
-                          <span className="font-medium text-amber-900">
-                            Rs.{" "}
-                            {availabilityOriginalAmount.toLocaleString()}
-                          </span>
+                        <div className="flex justify-between gap-3 text-sm">
+                          <span className="text-amber-700">Original Amount</span>
+                          <span className="font-medium tabular-nums text-amber-900">{displayPrice(availabilityOriginalAmount)}</span>
                         </div>
-
-                        {availabilityApiDiscount >
-                          0 && (
-                            <div className="flex justify-between text-sm">
-                              <span className="text-green-700">
-                                API Discount
-                              </span>
-
-                              <span className="font-medium text-green-700">
-                                - Rs.{" "}
-                                {availabilityApiDiscount.toLocaleString()}
-                              </span>
-                            </div>
-                          )}
-
-                        {couponDiscount >
-                          0 && (
-                            <div className="flex justify-between text-sm">
-                              <span className="text-green-700">
-                                Coupon Discount
-                              </span>
-
-                              <span className="font-medium text-green-700">
-                                - Rs.{" "}
-                                {couponDiscount.toLocaleString()}
-                              </span>
-                            </div>
-                          )}
+                        {pricing?.isPromotion && (
+                          <div className="flex justify-between gap-3 text-sm text-green-800">
+                            <span>Promotion ({pricing.promotionPercentage}% on {pricing.promotionSlotCount} {pricing.promotionSlotCount === 1 ? "slot" : "slots"})</span>
+                            <span className="font-medium tabular-nums">-{displayPrice(pricing.promotionDiscount)}</span>
+                          </div>
+                        )}
+                        {couponApplied && (
+                          <div className="flex justify-between gap-3 text-sm text-green-800">
+                            <span>Coupon Discount ({couponQuote.couponSlotCount} {couponQuote.couponSlotCount === 1 ? "slot" : "slots"})</span>
+                            <span className="font-medium tabular-nums">-{displayPrice(couponQuote.couponDiscount)}</span>
+                          </div>
+                        )}
 
                         <div className="border-t border-amber-200 pt-3">
                           <div className="flex justify-between">
@@ -822,9 +752,7 @@ export default function SpecialBookingsPage() {
 
                         <button
                           type="button"
-                          onClick={
-                            handleApplyCoupon
-                          }
+                          onClick={() => refreshPricing(true)}
                           disabled={
                             isValidatingCoupon
                           }
@@ -837,10 +765,21 @@ export default function SpecialBookingsPage() {
                       </div>
 
                       {couponApplied && (
-                        <p className="mt-2 text-xs font-medium text-green-600">
-                          Coupon applied
-                          successfully.
-                        </p>
+                        <div role="status" className="mt-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
+                          <p className="flex items-center gap-2 font-semibold">
+                            <Check size={16} aria-hidden="true" /> Coupon applied
+                          </p>
+                          <dl className="mt-2 grid gap-2 sm:grid-cols-2">
+                            <div>
+                              <dt className="text-xs text-green-800">Coupon savings</dt>
+                              <dd className="font-semibold tabular-nums">{displayPrice(couponQuote.couponDiscount)}</dd>
+                            </div>
+                            <div>
+                              <dt className="text-xs text-green-800">Slots covered by coupon</dt>
+                              <dd className="font-semibold tabular-nums">{couponQuote.couponSlotCount} of {hold.bookingCount}</dd>
+                            </div>
+                          </dl>
+                        </div>
                       )}
                     </div>
 
@@ -854,7 +793,7 @@ export default function SpecialBookingsPage() {
 
                         <span className="text-xl font-bold text-gray-900">
                           Rs.{" "}
-                          {paymentAmount.toLocaleString()}
+                          {payableAmount.toLocaleString()}
                         </span>
                       </div>
 
@@ -867,7 +806,7 @@ export default function SpecialBookingsPage() {
                         Payment Method
                       </label>
 
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                         <button
                           type="button"
                           onClick={() =>
@@ -899,15 +838,22 @@ export default function SpecialBookingsPage() {
                         >
                           Card
                         </button>
+                        <button type="button" aria-pressed={paymentMethod === "slip"} onClick={() => setPaymentMethod("slip")}
+                          className={`cursor-pointer rounded-xl border px-4 py-3 text-sm font-medium transition ${paymentMethod === "slip" ? "border-amber-500 bg-amber-50 text-amber-700" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}>
+                          Slip upload
+                        </button>
                       </div>
+                      {paymentMethod === "slip" && (
+                        <p className="mt-3 text-sm text-gray-600">Hold the slots for 12 hours, then upload and approve the customer's payment slip before the hold expires.</p>
+                      )}
                     </div>
 
                     {/* CUSTOMER */}
                     <div className="rounded-xl border border-gray-200 p-5 space-y-4">
-                      <div><label htmlFor="special-customer" className="mb-2 block text-sm font-medium text-gray-700">Customer Name</label>
-                        <input id="special-customer" type="text" maxLength={100} value={customerName} onChange={event => setCustomerName(event.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-amber-500" /></div>
-                      <div><label htmlFor="special-phone" className="mb-2 block text-sm font-medium text-gray-700">Phone Number</label>
-                        <input id="special-phone" type="tel" maxLength={16} value={phoneNumber} onChange={event => setPhoneNumber(event.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-amber-500" /></div>
+                      <div><label htmlFor="special-customer" className="mb-2 block text-sm font-medium text-gray-700">Customer Name <span className="text-xs text-gray-500">(required)</span></label>
+                        <input id="special-customer" type="text" required maxLength={100} value={customerName} onChange={event => setCustomerName(event.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-amber-500" /></div>
+                      <div><label htmlFor="special-phone" className="mb-2 block text-sm font-medium text-gray-700">Phone Number <span className="text-xs text-gray-500">(required)</span></label>
+                        <input id="special-phone" type="tel" required maxLength={16} value={phoneNumber} onChange={event => setPhoneNumber(event.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-amber-500" /></div>
                     </div>
 
                     {/* INFO */}
@@ -951,13 +897,12 @@ export default function SpecialBookingsPage() {
                       handleConfirmBooking
                     }
                     disabled={
-                      !!busy || !hold || expired || !couponApplied || !customerName.trim() || !/^\+?[0-9]{9,15}$/.test(phoneNumber.trim())
+                      !!busy || !hold || expired || !canConfirmPricing || !customerName.trim() || !/^\+?[0-9]{9,15}$/.test(phoneNumber.trim())
                     }
                     className="rounded-lg cursor-pointer bg-gradient-to-r from-amber-500 via-amber-600 to-orange-700 px-6 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {isCreatingBooking
-                      ? "Creating..."
-                      : "Confirm Booking"}
+                    {paymentMethod === "slip" ? (isCreatingBooking ? "Holding…" : "Hold slots") :
+                      (isCreatingBooking ? "Creating…" : "Confirm Booking")}
                   </button>
                 </div>
               )}

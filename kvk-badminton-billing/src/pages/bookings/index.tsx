@@ -3,7 +3,9 @@ import { Calendar, CalendarDays, ChevronRight, X } from "lucide-react";
 import { getNextWorkingDays } from "@/services/holidays-api";
 import { getSlotsAvailability } from "@/services/slots-api";
 import { getCourts } from "@/services/courts-api";
-import { bookingSlots, confirmBooking } from "@/services/booking-api";
+import { bookingSlots, confirmBooking, createWalkIn } from "@/services/booking-api";
+import { bookingError } from "@/services/special-bookings-api";
+import { sriLankaToday } from "./special-bookings/booking-utils";
 import { createPortal } from "react-dom";
 import { Alert } from "@/components/ui/alert";
 import { useNavigate } from "react-router-dom";
@@ -41,6 +43,8 @@ export default function Bookings() {
   const [customerName, setCustomerName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [paymentTypes, setPaymentTypes] = useState(1);
+  const [isWalkIn, setIsWalkIn] = useState(false);
+  const [confirmationError, setConfirmationError] = useState("");
   const [holdSlots, setHoldSlots] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [pageAlert, setPageAlert] = useState<{
@@ -54,6 +58,8 @@ export default function Bookings() {
   >({});
   
   const navigate = useNavigate();
+  const todayDate = sriLankaToday();
+  const isToday = days[selectedDate]?.date.slice(0, 10) === todayDate;
 
   const dayendData = localStorage.getItem("dayEndData") ? JSON.parse(localStorage.getItem("dayEndData") as string) : null;
 
@@ -80,8 +86,8 @@ export default function Bookings() {
 
 
   const handleGetNextWorkingDays = async () => {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterday = new Date(`${todayDate}T00:00:00Z`);
+    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
 
     const startDate = yesterday.toISOString().split("T")[0];
 
@@ -89,12 +95,12 @@ export default function Bookings() {
       const workingDays = await getNextWorkingDays(startDate, 7);
 
       const mappedDays = workingDays.map(
-        (dateString: string, index: number) => {
+        (dateString: string) => {
           const date = new Date(dateString);
 
           return {
             label:
-              index === 0
+              dateString.slice(0, 10) === todayDate
                 ? "Today"
                 : date.toLocaleDateString("en-US", {
                   weekday: "short",
@@ -182,7 +188,12 @@ export default function Bookings() {
 
       const res = await bookingSlots(payload);
 
-      setHoldSlots(res?.additionalData?.response || []);
+      const holds = res?.additionalData?.response ?? [];
+      if (holds.length !== bookings.length) throw new Error("Could not hold all selected slots.");
+      setConfirmationError("");
+      setIsWalkIn(false);
+      setHoldSlots(holds);
+      setIsBookingModalOpen(true);
       handleGetSlotsAvailability(days[selectedDate].date);
     } catch (error) {
       setPageAlert({
@@ -250,53 +261,40 @@ export default function Bookings() {
   );
 
   const handleConfirmBooking = async () => {
-    if (!customerName || !phoneNumber) {
-      setPageAlert({
-        visible: true,
-        variant: "error",
-        title: "Missing Information",
-        description: "Please provide both customer name and phone number.",
-      });
+    if (!customerName.trim() || !phoneNumber) {
+      setConfirmationError("Please provide both customer name and phone number.");
       return;
     }
 
     if (holdSlots.length === 0) {
-      setPageAlert({
-        visible: true,
-        variant: "error",
-        title: "No Slots Held",
-        description: "Please hold slots before confirming the booking.",
-      });
+      setConfirmationError("Please hold slots before confirming the booking.");
       return;
     }
 
     if (!/^07\d{8}$/.test(phoneNumber)) {
-      setPageAlert({
-        visible: true,
-        variant: "error",
-        title: "Invalid Phone Number",
-        description: "Please enter a valid phone number starting with 07 and containing 10 digits.",
-      });
+      setConfirmationError("Enter a 10-digit mobile number starting with 07.");
       return;
     }
 
+    setConfirmationError("");
     setLoading(true);
 
     try {
-      await confirmBooking({
-        holdIds: holdSlots.map((slot) => slot.holdId),
-        customerDetails: {
-          customerName,
-          phoneNumber,
-          paymentType: paymentTypes,
-        },
-      });
+      const holdIds = holdSlots.map((slot) => slot.holdId);
+      if (isWalkIn) {
+        await createWalkIn({ holdIds, customerName: customerName.trim(), phoneNumber });
+      } else {
+        await confirmBooking({
+          holdIds,
+          customerDetails: { customerName, phoneNumber, paymentType: paymentTypes },
+        });
+      }
 
       setPageAlert({
         visible: true,
         variant: "success",
-        title: "Booking Confirmed",
-        description: "Your booking has been successfully confirmed.",
+        title: isWalkIn ? "Walk-in booked" : "Booking Confirmed",
+        description: isWalkIn ? "Payment is pending. Collect it from Today's Schedule." : "Your booking has been successfully confirmed.",
       });
 
       setSelectedSlots({});
@@ -304,16 +302,12 @@ export default function Bookings() {
       setCustomerName("");
       setPhoneNumber("");
       setPaymentTypes(1);
+      setIsWalkIn(false);
       setIsBookingModalOpen(false);
 
       handleGetSlotsAvailability(days[selectedDate].date);
     } catch (error) {
-      setPageAlert({
-        visible: true,
-        variant: "error",
-        title: "Confirmation Error",
-        description: "An error occurred while confirming the booking. Please try again.",
-      });
+      setConfirmationError(bookingError(error));
     } finally {
       setLoading(false);
     }
@@ -356,11 +350,13 @@ export default function Bookings() {
         status = "booked";
       }
 
-      if (selectedDate === 0) {
-        const now = new Date();
+      if (status === "available" && isToday) {
+        const currentHour = Number(new Intl.DateTimeFormat("en-GB", {
+          timeZone: "Asia/Colombo", hour: "2-digit", hourCycle: "h23",
+        }).format(new Date()));
         const hour = Number(slot.startTime.split(":")[0]);
 
-        if (hour < now.getHours()) {
+        if (hour < currentHour) {
           status = "past";
         }
       }
@@ -478,6 +474,7 @@ export default function Bookings() {
                 </div>
 
                 <button
+                  disabled={loading}
                   onClick={() => {
                     setIsBookingModalOpen(false)
                     setSelectedSlots({})
@@ -532,7 +529,18 @@ export default function Bookings() {
 
                 </div>
 
-                <div className="mt-6 mb-6 border-t pt-6">
+                {isToday && (
+                  <label className="my-5 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                    <input type="checkbox" checked={isWalkIn} disabled={loading} className="mt-1"
+                      onChange={(event) => setIsWalkIn(event.target.checked)} />
+                    <span className="text-sm">
+                      <span className="block font-semibold text-amber-950">Walk-in · Pay after playing</span>
+                      <span className="text-slate-700">Reserve these slots now and collect payment from Today's Schedule.</span>
+                    </span>
+                  </label>
+                )}
+
+                {!isWalkIn && <div className="mt-6 mb-6 border-t pt-6">
 
                   <h3 className="font-semibold mb-3">
                     Payment Method
@@ -566,7 +574,7 @@ export default function Bookings() {
 
                   </div>
 
-                </div>
+                </div>}
 
                 <div>
 
@@ -638,8 +646,10 @@ export default function Bookings() {
 
                 </div>
 
+                {confirmationError && <p role="alert" className="mt-4 text-sm text-red-700">{confirmationError}</p>}
                 <div className="flex justify-end gap-3 bg-white p-5">
                   <button
+                    disabled={loading}
                     onClick={() => {
                       setIsBookingModalOpen(false)
                       setSelectedSlots({})
@@ -655,7 +665,7 @@ export default function Bookings() {
                     disabled={loading || !customerName || !phoneNumber}
                     className="rounded-lg bg-amber-600 px-6 cursor-pointer py-2 text-white font-medium disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Confirm Booking
+                    {loading ? "Saving…" : isWalkIn ? "Reserve walk-in" : "Confirm Booking"}
                   </button>
                 </div>
 
@@ -803,7 +813,6 @@ export default function Bookings() {
 
                 <button
                   onClick={() => {
-                    setIsBookingModalOpen(true)
                     handleBookingMultipleSlots()
                   }}
                   className="

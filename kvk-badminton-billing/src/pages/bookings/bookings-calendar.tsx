@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, X } from "lucide-react";
-import { getBookingsList } from "@/services/booking-api";
+import { getBookingsList, WALK_IN_PENDING_PAYMENT } from "@/services/booking-api";
 
 type CalendarBooking = {
   id: string;
@@ -9,6 +9,7 @@ type CalendarBooking = {
   slotEndTime: string;
   courtName: string;
   customerName: string;
+  status: number;
   phoneNumber?: string | null;
 };
 
@@ -32,7 +33,7 @@ async function loadMonth(fromDate: string, toDate: string, signal: AbortSignal) 
   const seen = new Set<string>();
   for (let pageNumber = 1; ; pageNumber++) {
     const rows: CalendarBooking[] = await getBookingsList(
-      { fromDate, toDate, status: confirmedStatus, pageNumber, pageSize: 100 },
+      { fromDate, toDate, status: confirmedStatus, includePendingWalkIns: true, pageNumber, pageSize: 100 },
       signal,
     );
 
@@ -139,7 +140,7 @@ export default function BookingsCalendar({ onClose }: { onClose: () => void }) {
             <div>
               <h3 className="text-xl font-semibold tracking-tight sm:text-2xl" aria-live="polite">{monthLabel}</h3>
               <p className="mt-1 text-sm text-slate-600" role="status">
-                {!visibleResult ? "Loading bookings…" : visibleResult.error ? "" : `${visibleResult.bookings.length} confirmed slots`}
+                {!visibleResult ? "Loading bookings…" : visibleResult.error ? "" : `${visibleResult.bookings.length} booked slots`}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -170,7 +171,7 @@ export default function BookingsCalendar({ onClose }: { onClose: () => void }) {
               <div className="flex flex-wrap items-center justify-between gap-4 border-l-4 border-amber-400 bg-slate-900 px-4 py-4 text-white sm:px-6">
                 <div>
                   <h4 ref={detailsHeading} id="booking-day-heading" tabIndex={-1} className="text-lg font-semibold tracking-tight sm:text-xl">{dayFormat.format(selectedDay)}</h4>
-                  <p className="mt-1 text-sm text-slate-300">{dayBookings.length} confirmed {dayBookings.length === 1 ? "slot" : "slots"}</p>
+                  <p className="mt-1 text-sm text-slate-300">{dayBookings.length} booked {dayBookings.length === 1 ? "slot" : "slots"}</p>
                 </div>
                 <button type="button" className={`${calendarActionStyle} border-white/25 bg-white/10 text-white hover:bg-white/20`} onClick={() => {
                   setSelectedDay(null);
@@ -197,7 +198,12 @@ export default function BookingsCalendar({ onClose }: { onClose: () => void }) {
                       <tr key={booking.id} className="odd:bg-white even:bg-slate-50">
                         <td className={`${detailCellStyle} whitespace-nowrap font-semibold tabular-nums sm:px-6`}>{booking.slotStartTime.slice(0, 5)} – {booking.slotEndTime.slice(0, 5)}</td>
                         <td className={`${detailCellStyle} text-slate-700`}>{booking.courtName}</td>
-                        <td className={`${detailCellStyle} font-medium`}>{booking.customerName}</td>
+                        <td className={`${detailCellStyle} font-medium`}>
+                          {booking.customerName}
+                          {booking.status === WALK_IN_PENDING_PAYMENT && (
+                            <span className="block text-xs text-amber-800">Walk-in · Pending payment</span>
+                          )}
+                        </td>
                         <td className={`${detailCellStyle} whitespace-nowrap text-slate-700 tabular-nums sm:px-6`}>{booking.phoneNumber?.trim() || "—"}</td>
                       </tr>
                     ))}

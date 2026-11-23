@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
@@ -18,8 +18,10 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { getBookingsList } from "@/services/booking-api";
+import { getBookingsList, payWalkIn, WALK_IN_PENDING_PAYMENT } from "@/services/booking-api";
 import { getCourts } from "@/services/courts-api";
+import { bookingError } from "@/services/special-bookings-api";
+import { sriLankaToday } from "../bookings/special-bookings/booking-utils";
 
 /* =========================================================
    Types
@@ -41,6 +43,7 @@ type BookingRow = {
   createdAt: string;
   paymentType: number;
   notes?: string | null;
+  walkInId?: string | null;
 };
 
 type CourtOption = {
@@ -51,15 +54,13 @@ type CourtOption = {
 type ScheduleStatus = "upcoming" | "ongoing" | "completed";
 
 const CONFIRMED_STATUS = 2;
+const isPendingWalkIn = (booking: BookingRow) => booking.status === WALK_IN_PENDING_PAYMENT;
 
 /* =========================================================
    Today's Schedule Page
    ========================================================= */
 
 export default function Today() {
-  const today = new Date();
-  const todayDate = today.toISOString().split("T")[0];
-
   const navigate = useNavigate();
 
   const dayendData = localStorage.getItem("dayEndData")
@@ -77,6 +78,8 @@ export default function Today() {
   const [loadError, setLoadError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [now, setNow] = useState(new Date());
+  const todayDate = sriLankaToday(now);
+  const [paymentNotice, setPaymentNotice] = useState("");
 
   const [courts, setCourts] = useState<CourtOption[]>([]);
   const [selectedCourtId, setSelectedCourtId] = useState("");
@@ -94,6 +97,7 @@ export default function Today() {
   const formatDateDisplay = (dateString: string) => {
     try {
       return new Date(dateString).toLocaleDateString("en-GB", {
+        timeZone: "Asia/Colombo",
         weekday: "long",
         day: "numeric",
         month: "long",
@@ -152,41 +156,45 @@ export default function Today() {
      Bookings Data Loading
      ========================================================= */
 
-  const loadTodaysBookings = async () => {
-    try {
+  useEffect(() => {
+    const controller = new AbortController();
+    async function load() {
       setIsLoading(true);
       setLoadError("");
-
-      const response = await getBookingsList({
-        fromDate: todayDate,
-        toDate: todayDate,
-        status: CONFIRMED_STATUS,
-        courtId: selectedCourtId || undefined,
-        pageSize: 500,
-      });
-
-      const rows: BookingRow[] = Array.isArray(response) ? response : [];
-
-      rows.sort((a, b) => a.slotStartTime.localeCompare(b.slotStartTime));
-
-      setBookings(rows);
-    } catch (error) {
-      console.error("Failed to load today's bookings:", error);
-      setBookings([]);
-      setLoadError("Unable to load today's guest schedule. Please try again.");
-    } finally {
-      setIsLoading(false);
+      try {
+        const rows: BookingRow[] = [];
+        const pageSize = 500;
+        for (let pageNumber = 1; ; pageNumber++) {
+          const page: BookingRow[] = await getBookingsList({
+            fromDate: todayDate,
+            toDate: todayDate,
+            status: CONFIRMED_STATUS,
+            includePendingWalkIns: true,
+            pageNumber,
+            pageSize,
+          }, controller.signal);
+          rows.push(...page);
+          if (page.length < pageSize) break;
+        }
+        if (!controller.signal.aborted) {
+          setBookings(rows.sort((a, b) => a.slotStartTime.localeCompare(b.slotStartTime)));
+        }
+      } catch {
+        if (!controller.signal.aborted) {
+          setBookings([]);
+          setLoadError("Unable to load today's guest schedule. Please try again.");
+        }
+      } finally {
+        if (!controller.signal.aborted) setIsLoading(false);
+      }
     }
-  };
-
-  useEffect(() => {
-    void loadTodaysBookings();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCourtId]);
+    void load();
+    return () => controller.abort();
+  }, [todayDate]);
 
   const getScheduleStatus = (booking: BookingRow): ScheduleStatus => {
-    const start = new Date(`${booking.slotDate}T${booking.slotStartTime}`);
-    const end = new Date(`${booking.slotDate}T${booking.slotEndTime}`);
+    const start = new Date(`${booking.slotDate}T${booking.slotStartTime}+05:30`);
+    const end = new Date(`${booking.slotDate}T${booking.slotEndTime}+05:30`);
 
     if (now < start) return "upcoming";
     if (now >= start && now <= end) return "ongoing";
@@ -194,46 +202,62 @@ export default function Today() {
   };
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
+  const courtBookings = useMemo(() => selectedCourtId
+    ? bookings.filter(booking => booking.courtId === selectedCourtId)
+    : bookings, [bookings, selectedCourtId]);
 
   const filteredBookings = useMemo(() => {
-    if (!normalizedSearch) return bookings;
+    if (!normalizedSearch) return courtBookings;
 
-    return bookings.filter((booking) =>
+    return courtBookings.filter((booking) =>
       [booking.customerName, booking.phoneNumber]
         .join(" ")
         .toLowerCase()
         .includes(normalizedSearch),
     );
-  }, [bookings, normalizedSearch]);
+  }, [courtBookings, normalizedSearch]);
 
   const nextUpcomingId = useMemo(() => {
-    const upcoming = bookings.find(
+    const upcoming = courtBookings.find(
       (booking) => getScheduleStatus(booking) === "upcoming",
     );
     return upcoming?.id ?? null;
-  }, [bookings, now]);
+  }, [courtBookings, now]);
 
   const stats = useMemo(() => {
-    const upcomingCount = bookings.filter(
+    const upcomingCount = courtBookings.filter(
       (booking) => getScheduleStatus(booking) === "upcoming",
     ).length;
 
-    const ongoingCount = bookings.filter(
+    const ongoingCount = courtBookings.filter(
       (booking) => getScheduleStatus(booking) === "ongoing",
     ).length;
 
-    const totalRevenue = bookings.reduce(
-      (sum, booking) => sum + booking.bookingAmount,
+    const totalRevenue = courtBookings.reduce(
+      (sum, booking) => sum + (booking.status === CONFIRMED_STATUS ? booking.bookingAmount : 0),
       0,
     );
 
     return {
-      totalGuests: bookings.length,
+      totalGuests: courtBookings.length,
       upcomingCount,
       ongoingCount,
       totalRevenue,
     };
-  }, [bookings, now]);
+  }, [courtBookings, now]);
+
+  const walkInSlots = viewingBooking?.walkInId && isPendingWalkIn(viewingBooking)
+    ? bookings.filter(booking => booking.walkInId === viewingBooking.walkInId && isPendingWalkIn(booking))
+    : [];
+
+  async function recordPayment(walkInId: string, paymentType: 1 | 2) {
+    await payWalkIn(walkInId, paymentType);
+    setBookings(current => current.map(booking => booking.walkInId === walkInId
+      ? { ...booking, status: CONFIRMED_STATUS, paymentType }
+      : booking));
+    setViewingBooking(null);
+    setPaymentNotice("Walk-in payment recorded.");
+  }
 
   return (
     <main className="min-h-screen bg-slate-50/60">
@@ -258,8 +282,7 @@ export default function Today() {
               </div>
 
               <p className="text-sm text-slate-500">
-                Confirmed guests booked to play badminton today, sorted
-                by court time.
+                Court bookings and walk-in payments for today.
               </p>
             </div>
           </div>
@@ -280,7 +303,7 @@ export default function Today() {
           <SummaryCard
             title="Total Guests Today"
             value={stats.totalGuests.toLocaleString()}
-            subtitle="Confirmed bookings"
+            subtitle="Confirmed bookings and pending walk-ins"
             icon={<Users size={20} />}
             iconClassName="bg-amber-50 text-amber-900"
           />
@@ -304,11 +327,13 @@ export default function Today() {
           <SummaryCard
             title="Today's Revenue"
             value={formatPrice(stats.totalRevenue)}
-            subtitle="From confirmed guests"
+            subtitle="Payments collected"
             icon={<TrendingUp size={20} />}
             iconClassName="bg-violet-50 text-violet-600"
           />
         </div>
+
+        {paymentNotice && <p role="status" className="mb-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{paymentNotice}</p>}
 
         {/* Schedule List */}
         <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
@@ -316,8 +341,7 @@ export default function Today() {
             <div>
               <h2 className="font-bold text-slate-900">Guest Schedule</h2>
               <p className="text-xs text-slate-500">
-                Court time, guest details, and payment for each confirmed
-                booking today.
+                Review court times, guest details, and payments.
               </p>
             </div>
 
@@ -364,12 +388,9 @@ export default function Today() {
                 <CalendarClock size={26} />
               </div>
               <p className="font-semibold text-slate-700">
-                {bookings.length === 0
-                  ? "No confirmed guests booked for today yet."
+                {courtBookings.length === 0
+                  ? "No bookings for today in the selected courts."
                   : "No guests match your search or filter."}
-              </p>
-              <p className="text-xs text-slate-400">
-                Confirmed bookings for today will appear here automatically.
               </p>
             </div>
           ) : (
@@ -402,6 +423,11 @@ export default function Today() {
                           {booking.customerName}
                         </p>
                         <StatusBadge status={status} />
+                        {booking.walkInId && (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
+                            {isPendingWalkIn(booking) ? "Walk-in · Pending payment" : "Walk-in · Paid"}
+                          </span>
+                        )}
                         {isNext && (
                           <span className="inline-flex items-center rounded-full bg-amber-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
                             Next Up
@@ -430,17 +456,16 @@ export default function Today() {
                         {formatPrice(booking.bookingAmount)}
                       </p>
                       <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-600">
-                        {paymentLabel(booking.paymentType)}
+                        {isPendingWalkIn(booking) ? "Amount due" : paymentLabel(booking.paymentType)}
                       </span>
                     </div>
 
                     <button
                       type="button"
-                      onClick={() => setViewingBooking(booking)}
+                      onClick={() => { setPaymentNotice(""); setViewingBooking(booking); }}
                       className="inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-amber-900 hover:bg-amber-50 hover:text-amber-700 sm:self-center"
                     >
-                      <Eye size={14} />
-                      View
+                      {isPendingWalkIn(booking) ? "Take payment" : <><Eye size={14} /> View</>}
                     </button>
                   </div>
                 );
@@ -458,6 +483,8 @@ export default function Today() {
           formatTime={formatTime}
           formatDateDisplay={formatDateDisplay}
           paymentLabel={paymentLabel}
+          walkInSlots={walkInSlots}
+          onPay={recordPayment}
           onClose={() => setViewingBooking(null)}
         />
       )}
@@ -591,6 +618,8 @@ function BookingDetailModal({
   formatTime,
   formatDateDisplay,
   paymentLabel,
+  walkInSlots,
+  onPay,
   onClose,
 }: {
   booking: BookingRow;
@@ -599,24 +628,47 @@ function BookingDetailModal({
   formatTime: (time: string) => string;
   formatDateDisplay: (date: string) => string;
   paymentLabel: (paymentType: number) => string;
+  walkInSlots: BookingRow[];
+  onPay: (walkInId: string, paymentType: 1 | 2) => Promise<void>;
   onClose: () => void;
 }) {
+  const [paymentType, setPaymentType] = useState<1 | 2>(1);
+  const [isPaying, setIsPaying] = useState(false);
+  const [paymentError, setPaymentError] = useState("");
+  const paymentInFlight = useRef(false);
+  const pendingWalkIn = isPendingWalkIn(booking) && Boolean(booking.walkInId);
+
+  async function submitPayment() {
+    if (!booking.walkInId || paymentInFlight.current) return;
+    paymentInFlight.current = true;
+    setIsPaying(true);
+    setPaymentError("");
+    try {
+      await onPay(booking.walkInId, paymentType);
+    } catch (error) {
+      setPaymentError(bookingError(error));
+    } finally {
+      paymentInFlight.current = false;
+      setIsPaying(false);
+    }
+  }
+
   return createPortal(
     <div
       className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
+        if (event.target === event.currentTarget && !paymentInFlight.current) onClose();
       }}
     >
-      <div className="flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+      <div role="dialog" aria-modal="true" aria-labelledby="today-booking-title" className="flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
         <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4 sm:px-6">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-600 text-white">
               <CalendarClock size={20} />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-900">
-                Booking Details
+              <h2 id="today-booking-title" className="text-lg font-bold text-slate-900">
+                {pendingWalkIn ? "Take walk-in payment" : "Booking Details"}
               </h2>
               <p className="text-xs text-slate-500">
                 {booking.bookingNumber}
@@ -627,6 +679,8 @@ function BookingDetailModal({
           <button
             type="button"
             onClick={onClose}
+            disabled={isPaying}
+            aria-label="Close booking details"
             className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
           >
             <X size={20} />
@@ -641,29 +695,50 @@ function BookingDetailModal({
           <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
             <DetailRow label="Guest Name" value={booking.customerName} />
             <DetailRow label="Phone" value={booking.phoneNumber} />
-            <DetailRow label="Court" value={booking.courtName} />
             <DetailRow
               label="Date"
               value={formatDateDisplay(booking.slotDate)}
             />
-            <DetailRow
-              label="Time Slot"
-              value={`${formatTime(booking.slotStartTime)} - ${formatTime(
-                booking.slotEndTime,
-              )}`}
-            />
+            {walkInSlots.length > 1 ? (
+              <ul aria-label="Slots included in this payment" className="space-y-2 border-y border-slate-200 py-2">
+                {walkInSlots.map(slot => (
+                  <li key={slot.id} className="flex flex-wrap justify-between gap-x-3 text-slate-700">
+                    <span className="font-medium">{slot.courtName}</span>
+                    <span>{formatTime(slot.slotStartTime)} – {formatTime(slot.slotEndTime)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <>
+                <DetailRow label="Court" value={booking.courtName} />
+                <DetailRow label="Time Slot" value={`${formatTime(booking.slotStartTime)} – ${formatTime(booking.slotEndTime)}`} />
+              </>
+            )}
             <DetailRow
               label="Payment Method"
-              value={paymentLabel(booking.paymentType)}
+              value={pendingWalkIn ? "Pending payment" : paymentLabel(booking.paymentType)}
             />
             <div className="h-px bg-slate-200" />
             <div className="flex items-center justify-between text-sm">
-              <span className="font-bold text-amber-900">Amount</span>
+              <span className="font-bold text-amber-900">{pendingWalkIn ? `Total due (${walkInSlots.length} ${walkInSlots.length === 1 ? "slot" : "slots"})` : "Amount"}</span>
               <span className="text-base font-extrabold text-amber-900">
-                {formatPrice(booking.bookingAmount)}
+                {formatPrice(pendingWalkIn ? walkInSlots.reduce((total, slot) => total + slot.bookingAmount, 0) : booking.bookingAmount)}
               </span>
             </div>
           </div>
+
+          {pendingWalkIn && (
+            <fieldset className="flex gap-4 text-sm text-slate-700" disabled={isPaying}>
+              <legend className="mb-2 font-semibold text-slate-900">Payment method</legend>
+              <label className="flex items-center gap-2">
+                <input type="radio" name="walk-in-payment" checked={paymentType === 1} onChange={() => setPaymentType(1)} /> Cash
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="radio" name="walk-in-payment" checked={paymentType === 2} onChange={() => setPaymentType(2)} /> Card
+              </label>
+            </fieldset>
+          )}
+          {paymentError && <p role="alert" className="text-sm text-red-700">{paymentError}</p>}
 
           {booking.notes && (
             <div className="rounded-xl border border-slate-200 bg-white p-3.5">
@@ -673,14 +748,21 @@ function BookingDetailModal({
           )}
         </div>
 
-        <div className="border-t border-slate-200 bg-slate-50 px-5 py-4 sm:px-6">
+        <div className="flex gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:px-6">
           <button
             type="button"
             onClick={onClose}
+            disabled={isPaying}
             className="h-11 w-full cursor-pointer rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-100"
           >
             Close
           </button>
+          {pendingWalkIn && (
+            <button type="button" onClick={() => void submitPayment()} disabled={isPaying || walkInSlots.length === 0}
+              className="h-11 w-full rounded-xl bg-amber-700 text-sm font-semibold text-white hover:bg-amber-800 disabled:opacity-50">
+              {isPaying ? "Recording…" : "Record payment"}
+            </button>
+          )}
         </div>
       </div>
     </div>,
