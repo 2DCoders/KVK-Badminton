@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, CalendarDays, Check, Clock3, Loader2, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { getMemberBookingSetup, getCashierAvailability, bookingError, type BookingSetup, type CashierAvailability } from "@/services/special-bookings-api";
+import { getCashierBookingSetup, getCashierAvailability, bookingError, type BookingSetup, type CashierAvailability } from "@/services/special-bookings-api";
 import { getEnv } from "@/env";
-import { WEEKDAYS, endDate, isDate, maximumWeeks, slotTime, sriLankaToday } from "../booking-utils";
+import { CASHIER_MAX_WEEKS, WEEKDAYS, durationLabel, endDate, isDate, slotTime, sriLankaToday } from "../booking-utils";
 
 const formatDate = (date: string) => new Intl.DateTimeFormat("en-GB", {
   day: "numeric", month: "short", year: "numeric", timeZone: "UTC",
@@ -22,8 +22,8 @@ export default function SpecialBookingsAvailability() {
   const env = getEnv();
   const today = sriLankaToday();
   const minDate = isDate(env.BADMINTON_BOOKING_START_DATE) && env.BADMINTON_BOOKING_START_DATE > today ? env.BADMINTON_BOOKING_START_DATE : today;
-  const configuredWeeks = maximumWeeks(env.BOOKING_DURATION) || 12;
   const [setup, setSetup] = useState<BookingSetup | null>(null);
+  const [courtId, setCourtId] = useState("");
   const [setupError, setSetupError] = useState("");
   const [setupReload, setSetupReload] = useState(0);
   const [startDate, setStartDate] = useState(minDate);
@@ -34,12 +34,12 @@ export default function SpecialBookingsAvailability() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ key: string; data: CashierAvailability } | null>(null);
   const [error, setError] = useState<{ key: string; message: string } | null>(null);
-  const maxWeeks = Math.min(12, setup?.maximumWeeks ?? 12, configuredWeeks);
+  const maxWeeks = Math.min(CASHIER_MAX_WEEKS, setup?.maximumWeeks ?? CASHIER_MAX_WEEKS);
   const valid = isDate(startDate) && startDate >= minDate && weeks >= 1 && weeks <= maxWeeks;
-  const queryKey = `${setup?.court.id}/${startDate}/${weeks}/${day}/${reload}`;
+  const queryKey = `${courtId}/${startDate}/${weeks}/${day}/${reload}`;
   const data = result?.key === queryKey ? result.data : null;
   const currentError = error?.key === queryKey ? error.message : "";
-  const checking = !!setup && valid && !data && !currentError;
+  const checking = !!courtId && valid && !data && !currentError;
   const allWeekCount = data?.slots.filter(slot => slot.availableEveryWeek).length ?? 0;
   const partialCount = data?.slots.filter(slot => slot.availableCount > 0 && !slot.availableEveryWeek).length ?? 0;
   const unavailableCount = data?.slots.filter(slot => slot.availableCount === 0).length ?? 0;
@@ -47,21 +47,22 @@ export default function SpecialBookingsAvailability() {
 
   useEffect(() => {
     const controller = new AbortController();
-    getMemberBookingSetup(controller.signal).then(value => {
+    getCashierBookingSetup(controller.signal).then(value => {
       if (controller.signal.aborted) return;
       setSetup(value); setSetupError("");
-      setWeeks(current => Math.min(current, 12, value.maximumWeeks, configuredWeeks));
+      setCourtId(current => value.courts.some(court => court.id === current) ? current : value.courts[0]?.id ?? "");
+      setWeeks(current => Math.min(current, CASHIER_MAX_WEEKS, value.maximumWeeks));
     }).catch(reason => { if (!controller.signal.aborted) setSetupError(bookingError(reason)); });
     return () => controller.abort();
-  }, [configuredWeeks, setupReload]);
+  }, [setupReload]);
 
   useEffect(() => {
-    if (!setup || !valid) return;
+    if (!courtId || !valid) return;
     const controller = new AbortController();
     async function load() {
       setLoading(true);
       try {
-        const value = await getCashierAvailability({ startDate, weeks, daysOfWeek: [day] }, controller.signal);
+        const value = await getCashierAvailability({ courtId, startDate, weeks, daysOfWeek: [day] }, controller.signal);
         if (!Array.isArray(value?.dates) || !Array.isArray(value?.slots)) throw new Error("Availability could not be loaded. Please try again.");
         if (!controller.signal.aborted) { setResult({ key: queryKey, data: value }); setError(null); }
       } catch (reason) {
@@ -70,7 +71,7 @@ export default function SpecialBookingsAvailability() {
     }
     void load();
     return () => controller.abort();
-  }, [setup, valid, startDate, weeks, day, queryKey]);
+  }, [courtId, valid, startDate, weeks, day, queryKey]);
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -87,11 +88,17 @@ export default function SpecialBookingsAvailability() {
       <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm" aria-label="Availability options">
         <div className="mb-6 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
           <CalendarDays size={22} className="text-amber-700" />
-          <div><p className="font-semibold text-amber-800">{setup?.court.name ?? "Badminton court"}</p><p className="mt-1 text-xs text-amber-700">Choose the first date, duration, and weekly booking day.</p></div>
+          <div>
+            <label htmlFor="availability-court" className="mb-1 block text-sm font-semibold text-amber-900">Court</label>
+            <select id="availability-court" value={courtId} disabled={!setup?.courts.length} onChange={event => setCourtId(event.target.value)} className="rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-gray-900">
+              {!setup?.courts.length && <option value="">{setup ? "No active courts" : "Loading courts..."}</option>}
+              {setup?.courts.map(court => <option key={court.id} value={court.id}>{court.name}</option>)}
+            </select>
+          </div>
         </div>
         <div className="mb-6 grid gap-4 sm:grid-cols-2">
           <div><label htmlFor="availability-start" className="mb-2 block text-sm font-medium text-gray-700">Starting date</label><input id="availability-start" type="date" min={minDate} value={startDate} onChange={event => setStartDate(event.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-amber-500" /></div>
-          <div><label htmlFor="availability-duration" className="mb-2 block text-sm font-medium text-gray-700">Duration</label><select id="availability-duration" value={weeks} onChange={event => setWeeks(Number(event.target.value))} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-amber-500">{Array.from({ length: maxWeeks }, (_, index) => index + 1).map(value => <option key={value} value={value}>{value} {value === 1 ? "week" : "weeks"}</option>)}</select></div>
+          <div><label htmlFor="availability-duration" className="mb-2 block text-sm font-medium text-gray-700">Duration</label><select id="availability-duration" value={weeks} onChange={event => setWeeks(Number(event.target.value))} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-amber-500">{Array.from({ length: maxWeeks }, (_, index) => index + 1).map(value => <option key={value} value={value}>{durationLabel(value)}</option>)}</select></div>
         </div>
         <fieldset className="min-w-0 border-0 p-0">
           <legend className="mb-3 text-sm font-medium text-gray-700">Repeat every</legend>
@@ -99,7 +106,7 @@ export default function SpecialBookingsAvailability() {
         </fieldset>
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-gray-50 p-4 text-sm text-gray-600">
           <p>{valid ? <>Every <strong className="text-gray-800">{day}</strong>, from {formatDate(startDate)} to {formatDate(endDate(startDate, weeks))}.</> : `Choose a valid start date on or after ${formatDate(minDate)}.`}</p>
-          <button type="button" disabled={!setup || !valid || checking || loading} onClick={() => setReload(value => value + 1)} className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 disabled:opacity-50"><RefreshCw size={14} /> Refresh</button>
+          <button type="button" disabled={!courtId || !valid || checking || loading} onClick={() => setReload(value => value + 1)} className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 disabled:opacity-50"><RefreshCw size={14} /> Refresh</button>
         </div>
       </section>
 

@@ -39,6 +39,20 @@ export const confirmBooking = async (customerData: any) => {
     }
 }
 
+export const WALK_IN_PENDING_PAYMENT = 5;
+
+export async function createWalkIn(booking: { holdIds: string[]; customerName: string; phoneNumber: string }) {
+    await axios.post(`${BOOKING_API_URL}walk-ins`, booking, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+    });
+}
+
+export async function payWalkIn(walkInId: string, paymentType: 1 | 2) {
+    await axios.post(`${BOOKING_API_URL}walk-ins/${walkInId}/pay`, { paymentType }, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+    });
+}
+
 export const checkAvailabilityTemp = async (bookingData: any) => {
     try {
         const response = await axios.post(`${TEMP_BOOKING_API_URL}check-availability`, bookingData, {
@@ -70,11 +84,12 @@ export const getBookingsList = async (params: {
     fromDate?: string;
     toDate?: string;
     status?: number;
+    includePendingWalkIns?: boolean;
     courtId?: string;
     searchTerm?: string;
     pageNumber?: number;
     pageSize?: number;
-}) => {
+}, signal?: AbortSignal) => {
     try {
         const query = new URLSearchParams(
             Object.entries(params).reduce((acc, [key, value]) => {
@@ -86,6 +101,7 @@ export const getBookingsList = async (params: {
         ).toString();
 
         const response = await axios.get(`${BOOKING_API_URL}?${query}`, {
+            signal,
             headers: {
                 Authorization: `Bearer ${getToken()}`,
             },

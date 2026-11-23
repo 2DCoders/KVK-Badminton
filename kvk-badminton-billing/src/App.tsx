@@ -9,6 +9,7 @@ import Bookings from "./pages/bookings"
 import CourtSettings from "./pages/court-settings"
 import SpecialBookingsPage from "./pages/bookings/special-bookings"
 import SpecialBookingsAvailability from "./pages/bookings/special-bookings/availability"
+import PaymentSlipHoldsPage from "./pages/bookings/special-bookings/payment-slip-holds"
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
       <Route element={<AdminLayout><Bookings /></AdminLayout>} path="/bookings" />
       <Route element={<AdminLayout><Today /></AdminLayout>} path="/today" />
       <Route element={<AdminLayout><SpecialBookingsPage /></AdminLayout>} path="/special-bookings" />
+      <Route element={<AdminLayout><PaymentSlipHoldsPage /></AdminLayout>} path="/special-bookings/payment-slip-holds" />
       <Route element={<AdminLayout><SpecialBookingsAvailability /></AdminLayout>} path="/special-bookings-availability" />
       <Route element={<AdminLayout><Payments /></AdminLayout>} path="/payments" />
       <Route element={<AdminLayout><Dayend /></AdminLayout>} path="/dayend" />

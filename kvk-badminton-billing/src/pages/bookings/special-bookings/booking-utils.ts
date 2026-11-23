@@ -1,5 +1,12 @@
 import type { MemberSlot } from "@/services/special-bookings-api";
 export const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+export const CASHIER_MAX_WEEKS = 48;
+export function durationLabel(weeks: number) {
+  const label = `${weeks} ${weeks === 1 ? "week" : "weeks"}`;
+  if (weeks % 4 !== 0) return label;
+  const months = weeks / 4;
+  return `${label} (${months} ${months === 1 ? "month" : "months"})`;
+}
 export const money = (amount: number) => `LKR ${amount.toLocaleString("en-LK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 export const minutes = (time: string) => { const [h, m] = time.split(":").map(Number); return h * 60 + m; };
 export const slotTime = (time: string) => {
@@ -12,8 +19,8 @@ export function isDate(value: string) {
   const date = new Date(`${value}T00:00:00Z`);
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
-export function sriLankaToday() {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Colombo", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+export function sriLankaToday(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Colombo", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
   return ["year", "month", "day"].map(key => parts.find(part => part.type === key)?.value).join("-");
 }
 export function maximumWeeks(value: unknown) {
@@ -35,7 +42,14 @@ export function validateSchedule(date: string, minDate: string, weeks: number, m
   if (!Number.isInteger(weeks) || weeks < 1 || weeks > max) return "Choose an available booking duration.";
   if (!days.length || new Set(days).size !== days.length || days.some(day => !WEEKDAYS.includes(day))) return "Choose at least one valid day of the week.";
   if (!ids.length) return "Choose at least one time slot.";
-  if (!consecutiveSlots(ids, slots)) return "Choose consecutive time slots without gaps.";
+  const selected = slots.filter(slot => ids.includes(slot.slotId));
+  if (selected.length !== ids.length) return "Choose valid time slots.";
+  const courtIds = new Set(selected.map(slot => slot.courtId));
+  for (const courtId of courtIds) {
+    const courtSlots = selected.filter(slot => slot.courtId === courtId);
+    if (!consecutiveSlots(courtSlots.map(slot => slot.slotId), courtSlots))
+      return "Choose consecutive time slots without gaps on each court.";
+  }
   return "";
 }
 export function remainingSeconds(deadline: number, now = Date.now()) { return Math.max(0, Math.ceil((deadline - now) / 1000)); }
