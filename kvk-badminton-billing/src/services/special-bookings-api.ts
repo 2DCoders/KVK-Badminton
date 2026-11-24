@@ -71,6 +71,11 @@ export type CashierSlipReservation = {
 export async function holdCashierSlip(request: CashierCustomerRequest) {
   return (await axios.post<CashierSlipReservation>(endpoint("cashier-slips"), request, auth())).data;
 }
+export async function holdRegularCashierSlip(request: {
+  holdIds: string[]; customerName: string; phoneNumber: string; expectedAmount: number;
+}) {
+  return (await axios.post<CashierSlipReservation>(endpoint("cashier-slips/regular"), request, auth())).data;
+}
 export async function getCashierSlips(signal?: AbortSignal) {
   return (await axios.get<CashierSlipReservation[]>(endpoint("cashier-slips"), { ...auth(), signal })).data;
 }

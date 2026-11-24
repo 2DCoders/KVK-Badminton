@@ -25,7 +25,8 @@ function holdStatus(row: CashierSlipReservation, now: number): HoldStatus {
 }
 
 export default function PaymentSlipHoldsPage() {
-  const { state } = useLocation();
+  const { state, pathname } = useLocation();
+  const fromRegularBookings = pathname.startsWith("/bookings/");
   const [rows, setRows] = useState<CashierSlipReservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [reload, setReload] = useState(0);
@@ -93,16 +94,16 @@ export default function PaymentSlipHoldsPage() {
             <span className="rounded-xl bg-slate-900 p-3 text-amber-300"><FileText size={22} aria-hidden="true" /></span>
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Payment Slip Holds</h1>
-              <p className="mt-1 text-sm text-slate-600">Upload payment slips and approve held Special Bookings.</p>
+              <p className="mt-1 text-sm text-slate-600">Upload payment slips and approve held court bookings.</p>
             </div>
           </div>
-          <Link to="/special-bookings" className={`${actionStyle} inline-flex items-center gap-2 bg-white text-gray-700 hover:bg-gray-50`}>
-            <ArrowLeft size={16} aria-hidden="true" /> Back to Special Bookings
+          <Link to={fromRegularBookings ? "/bookings" : "/special-bookings"} className={`${actionStyle} inline-flex items-center gap-2 bg-white text-gray-700 hover:bg-gray-50`}>
+            <ArrowLeft size={16} aria-hidden="true" /> {fromRegularBookings ? "Back to Bookings" : "Back to Special Bookings"}
           </Link>
         </div>
         {state?.holdCreated === true && (
           <p role="status" className="mb-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
-            Slots held for 12 hours. Upload the payment slip here when it arrives.
+            Slots held. Upload the payment slip before the deadline shown below.
           </p>
         )}
         <div role="group" aria-label="Reservation status" className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
@@ -186,7 +187,7 @@ export default function PaymentSlipHoldsPage() {
             </p>
           )}
           <div className="grid items-start gap-4 lg:grid-cols-2">
-            {visible.map(({ row, status }) => <SlipCard key={row.reference} row={row} status={status} onUpdate={update} />)}
+            {visible.map(({ row, status }) => <SlipCard key={row.reference} row={row} status={status} now={now} onUpdate={update} />)}
           </div>
         </section>
       </div>
@@ -194,7 +195,7 @@ export default function PaymentSlipHoldsPage() {
   );
 }
 
-function SlipCard({ row, status, onUpdate }: { row: CashierSlipReservation; status: HoldStatus; onUpdate: (row: CashierSlipReservation) => void }) {
+function SlipCard({ row, status, now, onUpdate }: { row: CashierSlipReservation; status: HoldStatus; now: number; onUpdate: (row: CashierSlipReservation) => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -202,6 +203,12 @@ function SlipCard({ row, status, onUpdate }: { row: CashierSlipReservation; stat
   const approvalDialog = useRef<HTMLDialogElement>(null);
   const approvalRevision = useRef<string | null>(null);
   const due = new Date(row.paymentDueUtc);
+  const remaining = Math.max(0, Math.floor((due.getTime() - now) / 60_000));
+  const hours = Math.floor(remaining / 60);
+  const minutes = remaining % 60;
+  const timeLeft = hours > 0
+    ? `${hours} ${hours === 1 ? "hour" : "hours"}${minutes ? ` ${minutes} min` : ""} left`
+    : remaining > 0 ? `${remaining} min left` : "Less than 1 min left";
   const active = status === "awaiting_slip" || status === "ready";
 
   async function run(action: () => Promise<void>) {
@@ -264,7 +271,13 @@ function SlipCard({ row, status, onUpdate }: { row: CashierSlipReservation; stat
         <div className="col-span-2 min-w-0"><dt className="text-gray-500">Reference</dt><dd className="break-all">{row.reference}</dd></div>
         <div><dt className="text-gray-500">Held slots</dt><dd>{row.slotCount}</dd></div>
         <div><dt className="text-gray-500">Payment amount</dt><dd>Rs. {row.finalAmount.toLocaleString("en-LK")}</dd></div>
-        {status !== "approved" && <div className="col-span-2"><dt className="text-gray-500">Hold expires</dt><dd>{deadlineFormat.format(due)}</dd></div>}
+        {status !== "approved" && <div className="col-span-2">
+          <dt className="text-gray-500">Hold expires</dt>
+          <dd className="flex flex-wrap items-center gap-2">
+            <time dateTime={row.paymentDueUtc}>{deadlineFormat.format(due)}</time>
+            {active && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">{timeLeft}</span>}
+          </dd>
+        </div>}
       </dl>
       {active && (
         <div className="mb-3 rounded-xl border border-gray-200 bg-gray-50 p-3">

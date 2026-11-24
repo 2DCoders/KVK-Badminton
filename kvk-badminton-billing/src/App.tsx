@@ -22,6 +22,7 @@ function App() {
       <Route element={<AdminLayout><Today /></AdminLayout>} path="/today" />
       <Route element={<AdminLayout><SpecialBookingsPage /></AdminLayout>} path="/special-bookings" />
       <Route element={<AdminLayout><PaymentSlipHoldsPage /></AdminLayout>} path="/special-bookings/payment-slip-holds" />
+      <Route element={<AdminLayout><PaymentSlipHoldsPage /></AdminLayout>} path="/bookings/payment-slip-holds" />
       <Route element={<AdminLayout><SpecialBookingsAvailability /></AdminLayout>} path="/special-bookings-availability" />
       <Route element={<AdminLayout><Payments /></AdminLayout>} path="/payments" />
       <Route element={<AdminLayout><Dayend /></AdminLayout>} path="/dayend" />

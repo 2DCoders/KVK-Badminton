@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
-import { Calendar, CalendarDays, ChevronRight, X } from "lucide-react";
+import { Calendar, CalendarDays, ChevronRight, FileCheck, X } from "lucide-react";
 import { getNextWorkingDays } from "@/services/holidays-api";
 import { getSlotsAvailability } from "@/services/slots-api";
 import { getCourts } from "@/services/courts-api";
 import { bookingSlots, confirmBooking, createWalkIn } from "@/services/booking-api";
-import { bookingError } from "@/services/special-bookings-api";
+import { bookingError, holdRegularCashierSlip } from "@/services/special-bookings-api";
 import { sriLankaToday } from "./special-bookings/booking-utils";
 import { createPortal } from "react-dom";
 import { Alert } from "@/components/ui/alert";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import BookingsCalendar from "./bookings-calendar";
 
 interface Slot {
@@ -307,6 +307,10 @@ export default function Bookings() {
       const holdIds = holdSlots.map((slot) => slot.holdId);
       if (isWalkIn) {
         await createWalkIn({ holdIds, customerName: customerName.trim(), phoneNumber });
+      } else if (paymentTypes === 3) {
+        await holdRegularCashierSlip({ holdIds, customerName: customerName.trim(), phoneNumber, expectedAmount: totalAmount });
+        navigate("/bookings/payment-slip-holds", { state: { holdCreated: true } });
+        return;
       } else {
         await confirmBooking({
           holdIds,
@@ -561,7 +565,7 @@ export default function Bookings() {
                     Payment Method
                   </h3>
 
-                  <div className="flex gap-4">
+                  <div className="flex flex-wrap gap-4">
 
                     <label className="flex items-center gap-3 cursor-pointer">
 
@@ -587,7 +591,16 @@ export default function Bookings() {
 
                     </label>
 
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input type="radio" checked={paymentTypes === 3} disabled={loading}
+                        onChange={() => setPaymentTypes(3)} />
+                      Slip upload
+                    </label>
+
                   </div>
+                  {paymentTypes === 3 && <p className="mt-3 text-sm text-gray-600">
+                    Hold the slots for up to 12 hours or until the first slot ends. Upload and approve the slip from Payment Slip Holds.
+                  </p>}
 
                 </div>}
 
@@ -683,7 +696,7 @@ export default function Bookings() {
                     disabled={loading || !customerName || !phoneNumber}
                     className="rounded-lg bg-amber-600 px-6 cursor-pointer py-2 text-white font-medium disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {loading ? "Saving…" : isWalkIn ? "Reserve walk-in" : "Confirm Booking"}
+                    {loading ? "Saving…" : isWalkIn ? "Reserve walk-in" : paymentTypes === 3 ? "Hold slots for slip" : "Confirm Booking"}
                   </button>
                 </div>
 
@@ -703,6 +716,11 @@ export default function Bookings() {
             Select consecutive slots from one or multiple courts.
           </p>
         </div>
+        <div className="flex flex-wrap gap-2">
+        <Link to="/bookings/payment-slip-holds"
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+          <FileCheck size={16} aria-hidden="true" /> Payment Slip Holds
+        </Link>
         <button
           type="button"
           aria-haspopup="dialog"
@@ -712,6 +730,7 @@ export default function Bookings() {
           <CalendarDays size={18} className="text-amber-300" />
           Bookings Calendar
         </button>
+        </div>
       </div>
       {isCalendarOpen && <BookingsCalendar onClose={() => setIsCalendarOpen(false)} />}
 
