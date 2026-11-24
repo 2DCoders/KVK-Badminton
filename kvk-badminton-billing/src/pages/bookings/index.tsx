@@ -27,8 +27,23 @@ interface SlotAvailability {
   isBooked: boolean;
 }
 
+function slotTiming(date: string, slot: { startTime: string; endTime: string }, now: number) {
+  const start = Date.parse(`${date}T${slot.startTime}+05:30`);
+  const end = Date.parse(`${date}T${slot.endTime}+05:30`);
+  const endsAt = end <= start ? end + 86_400_000 : end;
+  if (now >= endsAt) return { ended: true, label: "Slot ended" };
+  if (now <= start) return { ended: false, label: "" };
+  const minutes = Math.floor((now - start) / 60_000);
+  return { ended: false, label: `Already elapsed: ${minutes > 0 ? `${minutes} min` : "less than 1 min"}` };
+}
+
 export default function Bookings() {
   const [selectedDate, setSelectedDate] = useState(0);
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 10_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const [days, setDays] = useState<
     {
       label: string;
@@ -59,7 +74,8 @@ export default function Bookings() {
   
   const navigate = useNavigate();
   const todayDate = sriLankaToday();
-  const isToday = days[selectedDate]?.date.slice(0, 10) === todayDate;
+  const bookingDate = days[selectedDate]?.date.slice(0, 10) ?? "";
+  const isToday = bookingDate === todayDate;
 
   const dayendData = localStorage.getItem("dayEndData") ? JSON.parse(localStorage.getItem("dayEndData") as string) : null;
 
@@ -154,6 +170,10 @@ export default function Bookings() {
   }, [days, selectedDate, courts]);
 
   const handleBookingMultipleSlots = async () => {
+    if (selectedSlotDetails.some((slot) => slotTiming(bookingDate, slot, Date.now()).ended)) {
+      setPageAlert({ visible: true, variant: "error", title: "Slot ended", description: "Select an available slot again." });
+      return;
+    }
     const hasInactiveCourt = Object.entries(selectedSlots).some(
       ([courtId, slotIds]) => slotIds.length > 0 &&
         !courts.some((court) => court.id === courtId && Number(court.status) === 1)
@@ -261,6 +281,10 @@ export default function Bookings() {
   );
 
   const handleConfirmBooking = async () => {
+    if (selectedSlotDetails.some((slot) => slotTiming(bookingDate, slot, Date.now()).ended)) {
+      setConfirmationError("A selected slot has ended. Select an available slot again.");
+      return;
+    }
     if (!customerName.trim() || !phoneNumber) {
       setConfirmationError("Please provide both customer name and phone number.");
       return;
@@ -339,7 +363,7 @@ export default function Bookings() {
         slots,
       };
     })
-    .filter(Boolean);
+    .filter((court) => court !== null);
 
   const renderCourt = (court: any) => {
     const isCourtActive = Number(court.status) === 1;
@@ -350,16 +374,7 @@ export default function Bookings() {
         status = "booked";
       }
 
-      if (status === "available" && isToday) {
-        const currentHour = Number(new Intl.DateTimeFormat("en-GB", {
-          timeZone: "Asia/Colombo", hour: "2-digit", hourCycle: "h23",
-        }).format(new Date()));
-        const hour = Number(slot.startTime.split(":")[0]);
-
-        if (hour < currentHour) {
-          status = "past";
-        }
-      }
+      if (status === "available" && slotTiming(bookingDate, slot, now).ended) status = "past";
 
       return {
         id: slot.id,
@@ -398,7 +413,7 @@ export default function Bookings() {
             return (
               <button
                 key={slot.id}
-                disabled={!isCourtActive || slot.status !== "available"}
+                disabled={!isCourtActive || (slot.status !== "available" && !selected)}
                 onClick={() =>
                   toggleSlot(court.id, formattedSlots, slot.id)
                 }
@@ -604,6 +619,9 @@ export default function Bookings() {
 
                               <span>
                                 {slot.startTime} - {slot.endTime}
+                                {slotTiming(bookingDate, slot, now).label && <span className="block font-semibold text-amber-800">
+                                  {slotTiming(bookingDate, slot, now).label}
+                                </span>}
                               </span>
 
                               <span>
@@ -782,6 +800,12 @@ export default function Bookings() {
                     );
                   })}
 
+                  {bookingSummary.flatMap((court) => court.slots.map((slot) => {
+                    const label = slotTiming(bookingDate, slot, now).label;
+                    return label && <p key={slot.id} className="text-xs font-semibold text-amber-800">
+                      {court.courtName} · {slot.startTime.slice(0, 5)}–{slot.endTime.slice(0, 5)} · {label}
+                    </p>;
+                  }))}
                   <div className="border-t pt-4">
                     <div className="flex justify-between mb-2">
                       <span className="text-sm text-gray-500">Total Slots</span>
