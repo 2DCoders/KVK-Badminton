@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
-import { Calendar, CalendarDays, ChevronRight, X } from "lucide-react";
+import { Calendar, CalendarDays, ChevronRight, FileCheck, X } from "lucide-react";
 import { getNextWorkingDays } from "@/services/holidays-api";
 import { getSlotsAvailability } from "@/services/slots-api";
 import { getCourts } from "@/services/courts-api";
 import { bookingSlots, confirmBooking, createWalkIn } from "@/services/booking-api";
-import { bookingError } from "@/services/special-bookings-api";
+import { bookingError, holdRegularCashierSlip } from "@/services/special-bookings-api";
 import { sriLankaToday } from "./special-bookings/booking-utils";
 import { createPortal } from "react-dom";
 import { Alert } from "@/components/ui/alert";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import BookingsCalendar from "./bookings-calendar";
 
 interface Slot {
@@ -27,8 +27,23 @@ interface SlotAvailability {
   isBooked: boolean;
 }
 
+function slotTiming(date: string, slot: { startTime: string; endTime: string }, now: number) {
+  const start = Date.parse(`${date}T${slot.startTime}+05:30`);
+  const end = Date.parse(`${date}T${slot.endTime}+05:30`);
+  const endsAt = end <= start ? end + 86_400_000 : end;
+  if (now >= endsAt) return { ended: true, label: "Slot ended" };
+  if (now <= start) return { ended: false, label: "" };
+  const minutes = Math.floor((now - start) / 60_000);
+  return { ended: false, label: `Already elapsed: ${minutes > 0 ? `${minutes} min` : "less than 1 min"}` };
+}
+
 export default function Bookings() {
   const [selectedDate, setSelectedDate] = useState(0);
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 10_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const [days, setDays] = useState<
     {
       label: string;
@@ -59,7 +74,8 @@ export default function Bookings() {
   
   const navigate = useNavigate();
   const todayDate = sriLankaToday();
-  const isToday = days[selectedDate]?.date.slice(0, 10) === todayDate;
+  const bookingDate = days[selectedDate]?.date.slice(0, 10) ?? "";
+  const isToday = bookingDate === todayDate;
 
   const dayendData = localStorage.getItem("dayEndData") ? JSON.parse(localStorage.getItem("dayEndData") as string) : null;
 
@@ -154,6 +170,10 @@ export default function Bookings() {
   }, [days, selectedDate, courts]);
 
   const handleBookingMultipleSlots = async () => {
+    if (selectedSlotDetails.some((slot) => slotTiming(bookingDate, slot, Date.now()).ended)) {
+      setPageAlert({ visible: true, variant: "error", title: "Slot ended", description: "Select an available slot again." });
+      return;
+    }
     const hasInactiveCourt = Object.entries(selectedSlots).some(
       ([courtId, slotIds]) => slotIds.length > 0 &&
         !courts.some((court) => court.id === courtId && Number(court.status) === 1)
@@ -261,6 +281,10 @@ export default function Bookings() {
   );
 
   const handleConfirmBooking = async () => {
+    if (selectedSlotDetails.some((slot) => slotTiming(bookingDate, slot, Date.now()).ended)) {
+      setConfirmationError("A selected slot has ended. Select an available slot again.");
+      return;
+    }
     if (!customerName.trim() || !phoneNumber) {
       setConfirmationError("Please provide both customer name and phone number.");
       return;
@@ -283,6 +307,10 @@ export default function Bookings() {
       const holdIds = holdSlots.map((slot) => slot.holdId);
       if (isWalkIn) {
         await createWalkIn({ holdIds, customerName: customerName.trim(), phoneNumber });
+      } else if (paymentTypes === 3) {
+        await holdRegularCashierSlip({ holdIds, customerName: customerName.trim(), phoneNumber, expectedAmount: totalAmount });
+        navigate("/bookings/payment-slip-holds", { state: { holdCreated: true } });
+        return;
       } else {
         await confirmBooking({
           holdIds,
@@ -339,7 +367,7 @@ export default function Bookings() {
         slots,
       };
     })
-    .filter(Boolean);
+    .filter((court) => court !== null);
 
   const renderCourt = (court: any) => {
     const isCourtActive = Number(court.status) === 1;
@@ -350,16 +378,7 @@ export default function Bookings() {
         status = "booked";
       }
 
-      if (status === "available" && isToday) {
-        const currentHour = Number(new Intl.DateTimeFormat("en-GB", {
-          timeZone: "Asia/Colombo", hour: "2-digit", hourCycle: "h23",
-        }).format(new Date()));
-        const hour = Number(slot.startTime.split(":")[0]);
-
-        if (hour < currentHour) {
-          status = "past";
-        }
-      }
+      if (status === "available" && slotTiming(bookingDate, slot, now).ended) status = "past";
 
       return {
         id: slot.id,
@@ -398,7 +417,7 @@ export default function Bookings() {
             return (
               <button
                 key={slot.id}
-                disabled={!isCourtActive || slot.status !== "available"}
+                disabled={!isCourtActive || (slot.status !== "available" && !selected)}
                 onClick={() =>
                   toggleSlot(court.id, formattedSlots, slot.id)
                 }
@@ -546,7 +565,7 @@ export default function Bookings() {
                     Payment Method
                   </h3>
 
-                  <div className="flex gap-4">
+                  <div className="flex flex-wrap gap-4">
 
                     <label className="flex items-center gap-3 cursor-pointer">
 
@@ -572,7 +591,16 @@ export default function Bookings() {
 
                     </label>
 
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input type="radio" checked={paymentTypes === 3} disabled={loading}
+                        onChange={() => setPaymentTypes(3)} />
+                      Slip upload
+                    </label>
+
                   </div>
+                  {paymentTypes === 3 && <p className="mt-3 text-sm text-gray-600">
+                    Hold the slots for up to 12 hours or until the first slot ends. Upload and approve the slip from Payment Slip Holds.
+                  </p>}
 
                 </div>}
 
@@ -604,6 +632,9 @@ export default function Bookings() {
 
                               <span>
                                 {slot.startTime} - {slot.endTime}
+                                {slotTiming(bookingDate, slot, now).label && <span className="block font-semibold text-amber-800">
+                                  {slotTiming(bookingDate, slot, now).label}
+                                </span>}
                               </span>
 
                               <span>
@@ -665,7 +696,7 @@ export default function Bookings() {
                     disabled={loading || !customerName || !phoneNumber}
                     className="rounded-lg bg-amber-600 px-6 cursor-pointer py-2 text-white font-medium disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {loading ? "Saving…" : isWalkIn ? "Reserve walk-in" : "Confirm Booking"}
+                    {loading ? "Saving…" : isWalkIn ? "Reserve walk-in" : paymentTypes === 3 ? "Hold slots for slip" : "Confirm Booking"}
                   </button>
                 </div>
 
@@ -685,6 +716,11 @@ export default function Bookings() {
             Select consecutive slots from one or multiple courts.
           </p>
         </div>
+        <div className="flex flex-wrap gap-2">
+        <Link to="/bookings/payment-slip-holds"
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+          <FileCheck size={16} aria-hidden="true" /> Payment Slip Holds
+        </Link>
         <button
           type="button"
           aria-haspopup="dialog"
@@ -694,6 +730,7 @@ export default function Bookings() {
           <CalendarDays size={18} className="text-amber-300" />
           Bookings Calendar
         </button>
+        </div>
       </div>
       {isCalendarOpen && <BookingsCalendar onClose={() => setIsCalendarOpen(false)} />}
 
@@ -782,6 +819,12 @@ export default function Bookings() {
                     );
                   })}
 
+                  {bookingSummary.flatMap((court) => court.slots.map((slot) => {
+                    const label = slotTiming(bookingDate, slot, now).label;
+                    return label && <p key={slot.id} className="text-xs font-semibold text-amber-800">
+                      {court.courtName} · {slot.startTime.slice(0, 5)}–{slot.endTime.slice(0, 5)} · {label}
+                    </p>;
+                  }))}
                   <div className="border-t pt-4">
                     <div className="flex justify-between mb-2">
                       <span className="text-sm text-gray-500">Total Slots</span>
