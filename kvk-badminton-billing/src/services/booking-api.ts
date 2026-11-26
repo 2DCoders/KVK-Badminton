@@ -26,14 +26,28 @@ export const bookingSlots = async (bookingData: any) => {
     }
 }
 
-export const confirmBooking = async (customerData: any) => {
+type ConfirmedSlot = {
+  holdId: string;
+  bookingNumber: string;
+  bookingAmount: number;
+  paymentType: number;
+  courtId: string;
+  courtSlotId: string;
+  bookingDate: string;
+};
+
+export const confirmBooking = async (customerData: {
+  holdIds: string[];
+  customerDetails: { customerName: string; phoneNumber: string; paymentType: number };
+}) => {
     try {
-        const response = await axios.post(`${BOOKING_API_URL}confirm-multi`, customerData, {
+        const response = await axios.post<{ succeeded: boolean; message: string; additionalData?: { response?: ConfirmedSlot[] } }>(`${BOOKING_API_URL}confirm-multi`, customerData, {
             headers: {
                 Authorization: `Bearer ${getToken()}`,
             },
         });
-        return response.data;
+        if (!response.data.succeeded) throw new Error(response.data.message);
+        return response.data.additionalData?.response ?? [];
     } catch (error) {
         throw error;
     }
