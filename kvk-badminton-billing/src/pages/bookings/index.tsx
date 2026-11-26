@@ -10,6 +10,8 @@ import { createPortal } from "react-dom";
 import { Alert } from "@/components/ui/alert";
 import { Link, useNavigate } from "react-router-dom";
 import BookingsCalendar from "./bookings-calendar";
+import BookingReceiptViewer from "@/components/booking-receipt-viewer";
+import { createBookingReceipt } from "@/services/booking-receipt";
 
 interface Slot {
   id: string;
@@ -62,6 +64,7 @@ export default function Bookings() {
   const [confirmationError, setConfirmationError] = useState("");
   const [holdSlots, setHoldSlots] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [receipt, setReceipt] = useState<{ pdf: Blob; filename: string } | null>(null);
   const [pageAlert, setPageAlert] = useState<{
     visible: boolean;
     variant?: "success" | "error" | "warning" | "info";
@@ -305,6 +308,7 @@ export default function Bookings() {
 
     try {
       const holdIds = holdSlots.map((slot) => slot.holdId);
+      let receiptFailed = false;
       if (isWalkIn) {
         await createWalkIn({ holdIds, customerName: customerName.trim(), phoneNumber });
       } else if (paymentTypes === 3) {
@@ -312,17 +316,43 @@ export default function Bookings() {
         navigate("/bookings/payment-slip-holds", { state: { holdCreated: true } });
         return;
       } else {
-        await confirmBooking({
+        const confirmedSlots = await confirmBooking({
           holdIds,
           customerDetails: { customerName, phoneNumber, paymentType: paymentTypes },
         });
+        try {
+          if (confirmedSlots.length !== holdIds.length || !confirmedSlots.every(slot =>
+            slot.bookingNumber && Number.isFinite(slot.bookingAmount) && slot.paymentType === paymentTypes
+          )) {
+            throw new Error("Missing confirmed receipt details.");
+          }
+          const receiptSlots = confirmedSlots.map(slot => {
+            const court = courts.find(court => court.id === slot.courtId);
+            const bookedSlot = courtSlots[slot.courtId]?.find(item => item.id === slot.courtSlotId);
+            if (!court || !bookedSlot) throw new Error("Missing confirmed court time.");
+            return {
+              ...slot,
+              courtName: court.name,
+              slotDate: slot.bookingDate,
+              slotStartTime: bookedSlot.startTime,
+              slotEndTime: bookedSlot.endTime,
+            };
+          });
+          const { doc, filename } = createBookingReceipt(customerName.trim(), paymentTypes === 1 ? "Cash" : "Card", receiptSlots);
+          setReceipt({ pdf: doc.output("blob"), filename });
+        } catch {
+          receiptFailed = true;
+        }
       }
 
       setPageAlert({
         visible: true,
-        variant: "success",
+        variant: receiptFailed ? "warning" : "success",
         title: isWalkIn ? "Walk-in booked" : "Booking Confirmed",
-        description: isWalkIn ? "Payment is pending. Collect it from Today's Schedule." : "Your booking has been successfully confirmed.",
+        description: isWalkIn
+          ? "Payment is pending. Collect it from Today's Schedule."
+          : receiptFailed ? "Your booking is confirmed. The receipt could not be opened."
+            : "Your booking has been successfully confirmed.",
       });
 
       setSelectedSlots({});
@@ -885,6 +915,7 @@ export default function Bookings() {
           </div>
         </div>
       </div>
+      {receipt && <BookingReceiptViewer {...receipt} onClose={() => setReceipt(null)} />}
     </div>
   );
 }
