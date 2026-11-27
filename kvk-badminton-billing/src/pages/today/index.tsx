@@ -6,6 +6,7 @@ import {
   CalendarClock,
   ChevronDown,
   Clock,
+  Download,
   Eye,
   Hash,
   MapPin,
@@ -22,6 +23,8 @@ import { getBookingsList, payWalkIn, WALK_IN_PENDING_PAYMENT } from "@/services/
 import { getCourts } from "@/services/courts-api";
 import { bookingError } from "@/services/special-bookings-api";
 import { sriLankaToday } from "../bookings/special-bookings/booking-utils";
+import BookingReceiptViewer from "@/components/booking-receipt-viewer";
+import { createBookingReceipt } from "@/services/booking-receipt";
 
 /* =========================================================
    Types
@@ -55,6 +58,8 @@ type ScheduleStatus = "upcoming" | "ongoing" | "completed";
 
 const CONFIRMED_STATUS = 2;
 const isPendingWalkIn = (booking: BookingRow) => booking.status === WALK_IN_PENDING_PAYMENT;
+const isPaid = (booking: BookingRow) =>
+  booking.status === CONFIRMED_STATUS && [1, 2, 3].includes(booking.paymentType);
 
 /* =========================================================
    Today's Schedule Page
@@ -80,6 +85,8 @@ export default function Today() {
   const [now, setNow] = useState(new Date());
   const todayDate = sriLankaToday(now);
   const [paymentNotice, setPaymentNotice] = useState("");
+  const [receiptError, setReceiptError] = useState("");
+  const [receipt, setReceipt] = useState<{ pdf: Blob; filename: string } | null>(null);
 
   const [courts, setCourts] = useState<CourtOption[]>([]);
   const [selectedCourtId, setSelectedCourtId] = useState("");
@@ -250,6 +257,20 @@ export default function Today() {
     ? bookings.filter(booking => booking.walkInId === viewingBooking.walkInId && isPendingWalkIn(booking))
     : [];
 
+  function downloadReceipt(booking: BookingRow) {
+    if (!isPaid(booking)) return;
+    setReceiptError("");
+    try {
+      const slots = booking.walkInId
+        ? bookings.filter(row => row.walkInId === booking.walkInId && isPaid(row))
+        : [booking];
+      const { doc, filename } = createBookingReceipt(booking.customerName, paymentLabel(booking.paymentType), slots);
+      doc.save(filename);
+    } catch {
+      setReceiptError("Unable to download the receipt. Please try again.");
+    }
+  }
+
   async function recordPayment(walkInId: string, paymentType: 1 | 2) {
     await payWalkIn(walkInId, paymentType);
     setBookings(current => current.map(booking => booking.walkInId === walkInId
@@ -257,6 +278,14 @@ export default function Today() {
       : booking));
     setViewingBooking(null);
     setPaymentNotice("Walk-in payment recorded.");
+    setReceiptError("");
+    try {
+      if (walkInSlots.length === 0) throw new Error("Missing walk-in slots.");
+      const { doc, filename } = createBookingReceipt(walkInSlots[0].customerName, paymentLabel(paymentType), walkInSlots);
+      setReceipt({ pdf: doc.output("blob"), filename });
+    } catch {
+      setReceiptError("The payment was recorded. Use Download receipt to try again.");
+    }
   }
 
   return (
@@ -334,6 +363,7 @@ export default function Today() {
         </div>
 
         {paymentNotice && <p role="status" className="mb-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{paymentNotice}</p>}
+        {receiptError && <p role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-800">{receiptError}</p>}
 
         {/* Schedule List */}
         <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
@@ -460,13 +490,21 @@ export default function Today() {
                       </span>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => { setPaymentNotice(""); setViewingBooking(booking); }}
-                      className="inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-amber-900 hover:bg-amber-50 hover:text-amber-700 sm:self-center"
-                    >
-                      {isPendingWalkIn(booking) ? "Take payment" : <><Eye size={14} /> View</>}
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                      <button
+                        type="button"
+                        onClick={() => { setPaymentNotice(""); setViewingBooking(booking); }}
+                        className="inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-amber-900 hover:bg-amber-50 hover:text-amber-700 sm:self-center"
+                      >
+                        {isPendingWalkIn(booking) ? "Take payment" : <><Eye size={14} /> View</>}
+                      </button>
+                      {isPaid(booking) && (
+                        <button type="button" onClick={() => downloadReceipt(booking)}
+                          className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-amber-900 hover:bg-amber-50 hover:text-amber-700">
+                          <Download size={14} /> Download receipt
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -488,6 +526,7 @@ export default function Today() {
           onClose={() => setViewingBooking(null)}
         />
       )}
+      {receipt && <BookingReceiptViewer {...receipt} onClose={() => setReceipt(null)} />}
     </main>
   );
 }
